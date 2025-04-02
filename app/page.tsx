@@ -398,7 +398,7 @@ Do not use any markdown formatting (no ##, **, etc.) in your response. Start eac
       <header className="w-full border-b border-gray-100 bg-white px-4 py-8 shadow-sm md:px-8">
         <h1 className="text-center text-3xl font-bold text-gray-900">IDEO Documentation Tool</h1>
         <p className="mt-2 text-center text-gray-500">
-          Extract and format PDF content for IDEO documentation templates
+          Extract and format PDF content for IDEO documentation
         </p>
       </header>
 

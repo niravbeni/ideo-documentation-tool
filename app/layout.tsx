@@ -15,7 +15,7 @@ const geistMono = localFont({
 
 export const metadata: Metadata = {
   title: 'IDEO Documentation Tool',
-  description: 'Extract and format PDF content for IDEO documentation templates',
+  description: 'Extract and format PDF content for documentation',
   icons: [
     {
       rel: 'icon',
