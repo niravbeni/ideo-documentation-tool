@@ -2,8 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { EditableField } from './ui/EditableField';
 import { EditableArrayField } from './ui/EditableArrayField';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/Tabs';
-import { ExternalLink } from 'lucide-react';
-import { Button } from './ui/Button';
 
 interface CaseStudyOutputProps {
   assistantMessage: string;
@@ -267,10 +265,6 @@ export function CaseStudyOutput({ assistantMessage, onSave, caseStudyData }: Cas
     };
     setContent(updatedContent);
 
-    // Don't update initialContent - we want to preserve the original AI values
-    // for the reset functionality
-
-    // Convert the updated content back to string format and call onSave
     if (onSave) {
       const contentString = contentToString(updatedContent);
       console.log('Saving updated content:', contentString.substring(0, 50) + '...');
@@ -291,174 +285,85 @@ export function CaseStudyOutput({ assistantMessage, onSave, caseStudyData }: Cas
     }
   };
 
-  // Reset all fields to initial AI-generated values
-  const handleResetAll = () => {
-    setContent({ ...initialContent });
-
-    if (onSave) {
-      onSave(contentToString(initialContent));
-    }
-  };
-
   return (
-    <div className="p-6">
+    <div className="w-full">
       {parseError ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-600">
-          {parseError}
-        </div>
+        <div className="text-red-500 p-4 rounded bg-red-50 mb-4">{parseError}</div>
       ) : (
-        <>
-          <div className="mb-4 flex justify-end">
-            <button
-              onClick={handleResetAll}
-              className="flex items-center rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="mr-2"
-              >
-                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-                <path d="M3 3v5h5"></path>
-                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
-                <path d="M16 21h5v-5"></path>
-              </svg>
-              Reset All to AI Response
-            </button>
-          </div>
+        <div className="p-8">
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 gap-0">
-              <TabsTrigger value="overview" className="w-full">
-                Project Overview
-              </TabsTrigger>
-              <div className="flex w-full items-center">
-                <TabsTrigger value="ideo" className="flex-1">
-                  Inside IDEO
-                </TabsTrigger>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="mr-1 px-2"
-                  onClick={() => window.open('https://inside.ideo.com/', '_blank')}
-                  title="Open Inside IDEO"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </Button>
-              </div>
+            <TabsList className="mb-8 w-full grid grid-cols-2">
+              <TabsTrigger value="overview" className="flex-1">Project Overview</TabsTrigger>
+              <TabsTrigger value="insideideo" className="flex-1">Inside IDEO Template</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="mt-4">
+            <TabsContent value="overview" className="mt-0">
               <div className="space-y-6">
                 <EditableField
                   fieldId="summary"
                   label="Summary"
                   value={content.summary || ''}
                   rawValue={content.summary || ''}
-                  rows={4}
-                  onChange={(rawValue, processedValue) =>
-                    handleFieldChange('summary', rawValue, processedValue)
-                  }
+                  onChange={(rawValue, processedValue) => handleFieldChange('summary', rawValue, processedValue)}
                   onReset={() => handleReset('summary')}
+                  isExpanded={true}
                 />
+
                 <EditableArrayField
                   fieldId="keyPoints"
                   label="Key Points"
                   value={content.keyPoints || []}
                   rawValue={content.keyPoints?.join('\n') || ''}
-                  onChange={(rawValue, processedArray) =>
-                    handleFieldChange('keyPoints', rawValue, processedArray)
-                  }
+                  onChange={(rawValue, processedArray) => handleFieldChange('keyPoints', rawValue, processedArray)}
                   onReset={() => handleReset('keyPoints')}
                 />
+
                 <EditableArrayField
                   fieldId="insights"
-                  label="Key Insights"
+                  label="Insights"
                   value={content.insights || []}
                   rawValue={content.insights?.join('\n') || ''}
-                  onChange={(rawValue, processedArray) =>
-                    handleFieldChange('insights', rawValue, processedArray)
-                  }
+                  onChange={(rawValue, processedArray) => handleFieldChange('insights', rawValue, processedArray)}
                   onReset={() => handleReset('insights')}
                 />
               </div>
             </TabsContent>
 
-            <TabsContent value="ideo" className="mt-4">
+            <TabsContent value="insideideo" className="mt-0">
               <div className="space-y-6">
-                <EditableField
-                  fieldId="client"
-                  label="Client"
-                  value={content.client || ''}
-                  rawValue={content.client || ''}
-                  onChange={(rawValue, processedValue) =>
-                    handleFieldChange('client', rawValue, processedValue)
-                  }
-                  onReset={() => handleReset('client')}
-                />
-                <EditableField
-                  fieldId="title"
-                  label="Title"
-                  value={content.title || ''}
-                  rawValue={content.title || ''}
-                  onChange={(rawValue, processedValue) =>
-                    handleFieldChange('title', rawValue, processedValue)
-                  }
-                  onReset={() => handleReset('title')}
-                />
-                <EditableField
-                  fieldId="tagline"
-                  label="Tagline"
-                  value={content.tagline || ''}
-                  rawValue={content.tagline || ''}
-                  onChange={(rawValue, processedValue) =>
-                    handleFieldChange('tagline', rawValue, processedValue)
-                  }
-                  onReset={() => handleReset('tagline')}
-                />
                 <EditableField
                   fieldId="challenge"
                   label="Challenge"
                   value={content.challenge || ''}
                   rawValue={content.challenge || ''}
-                  rows={3}
-                  onChange={(rawValue, processedValue) =>
-                    handleFieldChange('challenge', rawValue, processedValue)
-                  }
+                  onChange={(rawValue, processedValue) => handleFieldChange('challenge', rawValue, processedValue)}
                   onReset={() => handleReset('challenge')}
+                  isExpanded={true}
                 />
+
                 <EditableField
                   fieldId="designWork"
                   label="Design/Work"
                   value={content.designWork || ''}
                   rawValue={content.designWork || ''}
-                  rows={3}
-                  onChange={(rawValue, processedValue) =>
-                    handleFieldChange('designWork', rawValue, processedValue)
-                  }
+                  onChange={(rawValue, processedValue) => handleFieldChange('designWork', rawValue, processedValue)}
                   onReset={() => handleReset('designWork')}
+                  isExpanded={true}
                 />
+
                 <EditableField
                   fieldId="impact"
                   label="Impact/Outcome"
                   value={content.impact || ''}
                   rawValue={content.impact || ''}
-                  rows={3}
-                  onChange={(rawValue, processedValue) =>
-                    handleFieldChange('impact', rawValue, processedValue)
-                  }
+                  onChange={(rawValue, processedValue) => handleFieldChange('impact', rawValue, processedValue)}
                   onReset={() => handleReset('impact')}
+                  isExpanded={true}
                 />
               </div>
             </TabsContent>
           </Tabs>
-        </>
+        </div>
       )}
     </div>
   );

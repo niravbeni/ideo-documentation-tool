@@ -13,6 +13,7 @@ interface EditableArrayFieldProps {
   onFocus?: () => void;
   onBlur?: () => void;
   onReset?: () => void;
+  isExpanded?: boolean;
 }
 
 export function EditableArrayField({
@@ -24,6 +25,7 @@ export function EditableArrayField({
   onFocus,
   onBlur,
   onReset,
+  isExpanded = false,
 }: EditableArrayFieldProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -89,11 +91,11 @@ export function EditableArrayField({
   };
 
   return (
-    <div>
+    <div className="h-full">
       <label htmlFor={fieldId} className="mb-1 block text-sm font-medium">
         {label}
       </label>
-      <div className="flex space-x-2">
+      <div className="flex space-x-2 h-[calc(100%-2rem)]">
         <div
           className={`flex-1 rounded-md border transition-all duration-150 ${!isEditing ? 'cursor-text hover:border-primary' : ''} ${
             isFocused || isEditing ? 'border-primary shadow-sm' : 'bg-background'
@@ -105,7 +107,7 @@ export function EditableArrayField({
           }}
         >
           {isEditing ? (
-            <div className="space-y-1 p-3">
+            <div className={`space-y-1 p-3 ${isExpanded ? 'min-h-[250px]' : 'min-h-[100px]'} transition-all duration-300`}>
               {editItems.map((item, index) => (
                 <div key={index} className="group/item flex items-center gap-2">
                   <div className="text-muted-foreground">•</div>
@@ -143,7 +145,7 @@ export function EditableArrayField({
               </Button>
             </div>
           ) : (
-            <div className="p-3">
+            <div className={`p-3 h-full ${isExpanded ? 'min-h-[250px]' : 'min-h-[100px]'} transition-all duration-300`}>
               <ul className="space-y-0.5 text-sm">
                 {value.map((item, index) => (
                   <li key={index} className="flex items-center gap-2">

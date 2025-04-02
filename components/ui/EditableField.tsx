@@ -15,6 +15,7 @@ interface EditableFieldProps {
   onBlur?: () => void;
   onChange: (rawValue: string, processedValue: string) => void;
   onReset?: () => void;
+  isExpanded?: boolean;
 }
 
 export function EditableField({
@@ -28,6 +29,7 @@ export function EditableField({
   onBlur,
   onChange,
   onReset,
+  isExpanded = false,
 }: EditableFieldProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
@@ -88,15 +90,15 @@ export function EditableField({
   };
 
   return (
-    <div>
+    <div className="h-full">
       <label htmlFor={fieldId} className="mb-1 block text-sm font-medium">
         {label}
       </label>
-      <div className="flex space-x-2">
+      <div className="flex space-x-2 h-[calc(100%-2rem)]">
         <div
-          className={`flex-1 rounded-md border transition-all duration-150 ${!isEditing ? 'cursor-text hover:border-primary' : ''} ${
-            isFocused || isEditing ? 'border-primary shadow-sm' : 'bg-background'
-          }`}
+          className={`flex-1 rounded-lg bg-white border transition-all duration-150 ${
+            !isEditing ? 'cursor-text hover:border-primary' : ''
+          } ${isFocused || isEditing ? 'border-primary' : 'border-gray-200'}`}
           onClick={() => {
             if (!isEditing) {
               handleFocus();
@@ -108,20 +110,19 @@ export function EditableField({
               id={fieldId}
               value={editedValue}
               onChange={(e) => {
-                // Preserve line breaks but prevent accidental leading/trailing whitespace
                 const newValue = e.target.value;
                 setEditedValue(newValue);
               }}
-              rows={rows}
+              rows={isExpanded ? 9 : 6}
               placeholder={placeholder}
-              className="h-full w-full resize-none p-3"
+              className="h-full w-full resize-none p-4 transition-all duration-300"
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
               onKeyDown={handleKeyDown}
               ref={textareaRef}
             />
           ) : (
-            <div className="whitespace-pre-wrap p-3 text-sm">
+            <div className={`whitespace-pre-wrap p-4 text-sm transition-all duration-300 ${isEditing ? (isExpanded ? 'min-h-[200px]' : 'min-h-[100px]') : ''}`}>
               {value || <span className="italic text-muted-foreground">{placeholder}</span>}
             </div>
           )}
