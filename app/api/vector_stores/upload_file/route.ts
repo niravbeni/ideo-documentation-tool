@@ -4,8 +4,7 @@ import path from 'path';
 import os from 'os';
 import { withRetry, createErrorResponse, base64ToBuffer } from '@/lib/utils';
 import { openai } from '@/lib/openai';
-
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB in bytes
+import { MAX_FILE_SIZE } from '@/lib/constants';
 
 export async function POST(request: Request) {
   console.log('Starting file upload process...');

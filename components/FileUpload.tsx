@@ -2,6 +2,7 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import { Check } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
+import { MAX_FILE_SIZE } from '../lib/constants';
 
 interface FileUploadProps {
   onFilesSelected: (files: File[]) => void;
@@ -18,7 +19,6 @@ export default function FileUpload({ onFilesSelected, children }: FileUploadProp
   const [uploading, setUploading] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<{ [key: string]: string }>({});
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
-  const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB limit
   const MAX_FILES = 5; // Maximum number of files
 
   const acceptedFileTypes = {
@@ -60,7 +60,7 @@ export default function FileUpload({ onFilesSelected, children }: FileUploadProp
       error: '',
       files,
     };
-  }, [MAX_FILE_SIZE]);
+  }, []);
 
   const handleUploadFiles = useCallback(
     async (selectedFiles: File[]) => {

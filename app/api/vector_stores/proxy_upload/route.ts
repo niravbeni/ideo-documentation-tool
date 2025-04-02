@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createErrorResponse, withRetry } from '@/lib/utils';
-
-// Maximum file size (100MB)
-const MAX_FILE_SIZE = 100 * 1024 * 1024;
+import { MAX_FILE_SIZE } from '@/lib/constants';
 
 export async function POST(request: Request) {
   console.log('Starting proxy upload process...');

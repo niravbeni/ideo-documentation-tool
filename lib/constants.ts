@@ -37,4 +37,8 @@ Your task is to extract and format information exactly as requested, following t
 - DO NOT use ANY markdown formatting (no **, #, -, *, etc.) in your response
 - Keep responses focused and concise while maintaining necessary detail
 - Ensure all points are specific and actionable
-`; 
+`;
+
+// File size limits
+export const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB in bytes
+export const MAX_FILE_SIZE_MB = '100mb'; // 100MB as string for Next.js config 
