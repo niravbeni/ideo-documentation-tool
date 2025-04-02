@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: ideo-documentation-tool
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+    autoDeploy: true
+    healthCheckPath: / 

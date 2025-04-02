@@ -176,4 +176,25 @@ MIT License - see LICENSE file for details
   - Changes require server restart
   - Common values: 'gpt-4', 'gpt-3.5-turbo', 'gpt-4-turbo-preview'
 
-Note: Environment variables are read at build/startup time. Any changes to these variables require restarting the development server or rebuilding the application. 
+Note: Environment variables are read at build/startup time. Any changes to these variables require restarting the development server or rebuilding the application.
+
+## Deployment on Render
+
+This application is configured for deployment on Render. Follow these steps to deploy:
+
+1. Fork or clone this repository to your GitHub account
+2. Create a new Web Service on Render
+3. Connect your GitHub repository
+4. Render will automatically detect the configuration from `render.yaml`
+5. Set up the following environment variables in Render:
+   - `OPENAI_API_KEY`: Your OpenAI API key
+   - `OPENAI_MODEL`: Set to `gpt-4-turbo-preview` (or your preferred model)
+   - `NODE_ENV`: Set to `production`
+
+The application will automatically deploy when you push changes to the main branch.
+
+### Important Notes
+- Ensure your OpenAI API key has sufficient credits
+- The free tier of Render may have some limitations
+- Initial build might take a few minutes
+- The application requires Node.js 18.x or higher 
