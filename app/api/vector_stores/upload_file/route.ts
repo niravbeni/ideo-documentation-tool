@@ -4,11 +4,23 @@ import path from 'path';
 import os from 'os';
 import { withRetry, createErrorResponse, base64ToBuffer } from '@/lib/utils';
 import { openai } from '@/lib/openai';
+import { MAX_FILE_SIZE } from '@/lib/constants';
 
 export async function POST(request: Request) {
   console.log('Starting file upload process...');
 
   try {
+    // Check content length header
+    const contentLength = parseInt(request.headers.get('content-length') || '0');
+    if (contentLength > MAX_FILE_SIZE) {
+      const { response, status } = createErrorResponse(
+        'File too large',
+        new Error(`File size exceeds ${MAX_FILE_SIZE / (1024 * 1024)}MB limit`),
+        413
+      );
+      return NextResponse.json(response, { status });
+    }
+
     const { fileObject } = await request.json();
 
     if (!fileObject || !fileObject.name || !fileObject.content) {
@@ -25,6 +37,16 @@ export async function POST(request: Request) {
     // Convert base64 to buffer
     const fileBuffer = base64ToBuffer(fileObject.content);
     console.log(`Converted to buffer, size: ${fileBuffer.length} bytes`);
+
+    // Check actual file size after base64 conversion
+    if (fileBuffer.length > MAX_FILE_SIZE) {
+      const { response, status } = createErrorResponse(
+        'File too large',
+        new Error(`File size exceeds ${MAX_FILE_SIZE / (1024 * 1024)}MB limit`),
+        413
+      );
+      return NextResponse.json(response, { status });
+    }
 
     const file = await withRetry(async () => {
       // Write to temp file and use that
