@@ -332,6 +332,33 @@ export function CaseStudyOutput({ assistantMessage, onSave, caseStudyData }: Cas
             <TabsContent value="insideideo" className="mt-0">
               <div className="space-y-6">
                 <EditableField
+                  fieldId="client"
+                  label="Client"
+                  value={content.client || ''}
+                  rawValue={content.client || ''}
+                  onChange={(rawValue, processedValue) => handleFieldChange('client', rawValue, processedValue)}
+                  onReset={() => handleReset('client')}
+                />
+
+                <EditableField
+                  fieldId="title"
+                  label="Title"
+                  value={content.title || ''}
+                  rawValue={content.title || ''}
+                  onChange={(rawValue, processedValue) => handleFieldChange('title', rawValue, processedValue)}
+                  onReset={() => handleReset('title')}
+                />
+
+                <EditableField
+                  fieldId="tagline"
+                  label="Tagline"
+                  value={content.tagline || ''}
+                  rawValue={content.tagline || ''}
+                  onChange={(rawValue, processedValue) => handleFieldChange('tagline', rawValue, processedValue)}
+                  onReset={() => handleReset('tagline')}
+                />
+
+                <EditableField
                   fieldId="challenge"
                   label="Challenge"
                   value={content.challenge || ''}
