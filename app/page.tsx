@@ -49,92 +49,146 @@ export default function Home() {
 
   const uploadFile = async (fileObject: { name: string; content: string; size: number }) => {
     try {
-      console.log(`Attempting to upload ${fileObject.name} (${Math.round(fileObject.size / 1024 / 1024)} MB)`);
+      const fileSizeMB = Math.round(fileObject.size / 1024 / 1024);
+      console.log(`Attempting to upload ${fileObject.name} (${fileSizeMB} MB)`);
       
-      // For larger files, use the proxy upload directly
-      if (fileObject.size > 20 * 1024 * 1024) { // 20MB threshold for direct proxy upload
-        console.log(`File size > 20MB, using proxy upload directly for ${fileObject.name}`);
+      // For very large files (over 100MB), show a specific error message
+      if (fileObject.size > 100 * 1024 * 1024) { // 100MB limit to match MAX_FILE_SIZE
+        console.error(`File too large: ${fileObject.name} (${fileSizeMB} MB) exceeds recommended size limit`);
+        throw new Error(`File ${fileObject.name} (${fileSizeMB} MB) is too large for the server to process. Please use a smaller file (under 100MB).`);
+      }
+      
+      // For larger files, use the proxy upload directly with memory optimizations
+      if (fileObject.size > 10 * 1024 * 1024) { // 10MB threshold for optimized upload (lowered from 20MB)
+        console.log(`File size > 10MB, using memory-optimized proxy upload for ${fileObject.name}`);
         
-        const binaryData = atob(fileObject.content);
-        const bytes = new Uint8Array(binaryData.length);
-        for (let i = 0; i < binaryData.length; i++) {
-          bytes[i] = binaryData.charCodeAt(i);
-        }
-
-        const blob = new Blob([bytes], { type: 'application/octet-stream' });
-        const fileBlob = new File([blob], fileObject.name, { type: 'application/octet-stream' });
-        const formData = new FormData();
-        formData.append('file', fileBlob);
-        formData.append('purpose', 'assistants');
-
-        console.log(`Sending ${fileObject.name} via proxy upload...`);
-        const altUploadResponse = await fetch('/api/vector_stores/proxy_upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!altUploadResponse.ok) {
-          // Safely handle the response which might not be JSON
-          const contentType = altUploadResponse.headers.get('content-type') || '';
-          
-          // For JSON responses
-          if (contentType.includes('application/json')) {
-            let altError;
-            // Try to parse as JSON, fall back to text if it fails
-            try {
-              altError = await altUploadResponse.json();
-              console.error('Proxy upload failed:', altError);
-              throw new Error(altError.error || `Failed to upload ${fileObject.name} via proxy (Status: ${altUploadResponse.status})`);
-            } catch {
-              // Intentionally empty catch - we'll handle the text response below
-            }
-            
-            // If JSON parsing failed, handle as text
-            const errorText = await altUploadResponse.text();
-            console.error('Proxy upload failed with non-JSON response:', 
-              errorText.slice(0, 200) + (errorText.length > 200 ? '...' : ''));
-            
-            // If it's an HTML response (common for proxy/gateway errors)
-            if (errorText.trim().startsWith('<!DOCTYPE') || errorText.trim().startsWith('<html')) {
-              throw new Error(`Server error when uploading ${fileObject.name}. The file may be too large for the server to handle.`);
-            }
-            
-            throw new Error(`Failed to upload ${fileObject.name} via proxy (Status: ${altUploadResponse.status}): ${errorText.slice(0, 100)}...`);
-          } else {
-            // Not JSON, get the text directly
-            const errorText = await altUploadResponse.text();
-            console.error('Proxy upload failed with non-JSON response:', 
-              errorText.slice(0, 200) + (errorText.length > 200 ? '...' : ''));
-            throw new Error(`Failed to upload ${fileObject.name} via proxy (Status: ${altUploadResponse.status})`);
-          }
-        }
-
-        // Safely parse the response
+        // Use a more memory-efficient approach for large files
         try {
-          const responseText = await altUploadResponse.text();
-          let altUploadData;
+          // Convert base64 to blob in chunks to reduce memory pressure
+          const binaryData = atob(fileObject.content);
+          const CHUNK_SIZE = 1024 * 1024; // Process 1MB at a time
+          const totalChunks = Math.ceil(binaryData.length / CHUNK_SIZE);
+          let processedBytes = 0;
+          const chunks = [];
+          
+          // Process in chunks to avoid memory issues
+          for (let i = 0; i < totalChunks; i++) {
+            const start = i * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, binaryData.length);
+            const chunk = binaryData.slice(start, end);
+            
+            const bytes = new Uint8Array(chunk.length);
+            for (let j = 0; j < chunk.length; j++) {
+              bytes[j] = chunk.charCodeAt(j);
+            }
+            chunks.push(bytes);
+            
+            processedBytes += chunk.length;
+            if (i % 5 === 0) {
+              console.log(`Processed ${Math.round(processedBytes / 1024 / 1024)} MB of ${fileSizeMB} MB`);
+              // Add a small delay to allow garbage collection
+              await new Promise(resolve => setTimeout(resolve, 10));
+            }
+          }
+          
+          // Combine chunks
+          const combinedBytes = new Uint8Array(binaryData.length);
+          let offset = 0;
+          for (const chunk of chunks) {
+            combinedBytes.set(chunk, offset);
+            offset += chunk.length;
+          }
+          
+          // Create blob and file from combined chunks
+          const blob = new Blob([combinedBytes], { type: 'application/octet-stream' });
+          const fileBlob = new File([blob], fileObject.name, { type: 'application/octet-stream' });
+          
+          console.log(`Successfully converted ${fileObject.name} data, preparing form data...`);
+          const formData = new FormData();
+          formData.append('file', fileBlob);
+          formData.append('purpose', 'assistants');
+          
+          console.log(`Sending ${fileObject.name} via proxy upload...`);
+          const altUploadResponse = await fetch('/api/vector_stores/proxy_upload', {
+            method: 'POST',
+            body: formData,
+          });
 
+          if (!altUploadResponse.ok) {
+            // Safely handle the response which might not be JSON
+            const contentType = altUploadResponse.headers.get('content-type') || '';
+            
+            // For JSON responses
+            if (contentType.includes('application/json')) {
+              let altError;
+              // Try to parse as JSON, fall back to text if it fails
+              try {
+                altError = await altUploadResponse.json();
+                console.error('Proxy upload failed:', altError);
+                throw new Error(altError.error || `Failed to upload ${fileObject.name} via proxy (Status: ${altUploadResponse.status})`);
+              } catch {
+                // Intentionally empty catch - we'll handle the text response below
+              }
+              
+              // If JSON parsing failed, handle as text
+              const errorText = await altUploadResponse.text();
+              console.error('Proxy upload failed with non-JSON response:', 
+                errorText.slice(0, 200) + (errorText.length > 200 ? '...' : ''));
+              
+              // If it's an HTML response (common for proxy/gateway errors)
+              if (errorText.trim().startsWith('<!DOCTYPE') || errorText.trim().startsWith('<html')) {
+                throw new Error(`Server error when uploading ${fileObject.name}. The file may be too large for the server to handle.`);
+              }
+              
+              throw new Error(`Failed to upload ${fileObject.name} via proxy (Status: ${altUploadResponse.status}): ${errorText.slice(0, 100)}...`);
+            } else {
+              // Not JSON, get the text directly
+              const errorText = await altUploadResponse.text();
+              console.error('Proxy upload failed with non-JSON response:', 
+                errorText.slice(0, 200) + (errorText.length > 200 ? '...' : ''));
+              throw new Error(`Failed to upload ${fileObject.name} via proxy (Status: ${altUploadResponse.status})`);
+            }
+          }
+
+          // Safely parse the response
           try {
-            altUploadData = JSON.parse(responseText);
+            const responseText = await altUploadResponse.text();
+            let altUploadData;
+
+            try {
+              altUploadData = JSON.parse(responseText);
+            } catch (error) {
+              console.error('Failed to parse proxy upload response:', error);
+              console.error('Response content:', responseText.slice(0, 200));
+              throw new Error(`Invalid response when uploading ${fileObject.name}. Response was not valid JSON.`);
+            }
+
+            if (!altUploadData.id) {
+              throw new Error(`Proxy upload response missing file ID for ${fileObject.name}`);
+            }
+
+            console.log(`Successfully uploaded ${fileObject.name} via proxy (ID: ${altUploadData.id})`);
+            return altUploadData.id;
           } catch (error) {
-            console.error('Failed to parse proxy upload response:', error);
-            console.error('Response content:', responseText.slice(0, 200));
-            throw new Error(`Invalid response when uploading ${fileObject.name}. Response was not valid JSON.`);
+            console.error('Error parsing proxy upload response:', error);
+            throw new Error(`Could not process response for ${fileObject.name}: ${error instanceof Error ? error.message : String(error)}`);
           }
-
-          if (!altUploadData.id) {
-            throw new Error(`Proxy upload response missing file ID for ${fileObject.name}`);
-          }
-
-          console.log(`Successfully uploaded ${fileObject.name} via proxy (ID: ${altUploadData.id})`);
-          return altUploadData.id;
         } catch (error) {
-          console.error('Error parsing proxy upload response:', error);
-          throw new Error(`Could not process response for ${fileObject.name}: ${error instanceof Error ? error.message : String(error)}`);
+          // Check for server killed error
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          
+          if (errorMessage.includes('Killed') || errorMessage.includes('socket hang up') || 
+              errorMessage.includes('ECONNRESET') || errorMessage.includes('aborted')) {
+            console.error(`Server process was killed during upload of ${fileObject.name}`);
+            throw new Error(`The server ran out of memory while processing ${fileObject.name}. Please try a smaller file (under 100MB).`);
+          }
+          
+          // Re-throw other errors
+          throw error;
         }
       }
       
-      // For smaller files, try standard upload first
+      // Rest of the code for smaller files remains unchanged
       console.log(`Attempting standard upload for ${fileObject.name}`);
       const uploadResponse = await fetch('/api/vector_stores/upload_file', {
         method: 'POST',

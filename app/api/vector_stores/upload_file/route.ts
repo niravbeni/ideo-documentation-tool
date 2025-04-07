@@ -6,6 +6,9 @@ import { withRetry, createErrorResponse, base64ToBuffer } from '@/lib/utils';
 import { openai } from '@/lib/openai';
 import { MAX_FILE_SIZE } from '@/lib/constants';
 
+// Increase timeout for large file uploads
+export const maxDuration = 180; // 3 minutes for larger files
+
 export async function POST(request: Request) {
   console.log('Starting file upload process...');
 

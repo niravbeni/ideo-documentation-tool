@@ -5,7 +5,7 @@ import { openai } from '@/lib/openai';
 type FileStatus = 'error' | 'processed' | 'processing' | 'uploaded';
 
 // Increase the timeout for this route to handle large files properly
-export const maxDuration = 120; // 2 minutes for processing large files
+export const maxDuration = 180; // 3 minutes for processing large files
 
 export async function POST(request: Request) {
   console.log('Starting add file to vector store process...');
@@ -45,9 +45,9 @@ export async function POST(request: Request) {
         if (status === 'processing') {
           console.log('File is still processing. Waiting for it to complete...');
 
-          // Wait for up to 40 seconds for processing to complete (doubled from previous 20s)
+          // Wait for up to 60 seconds for processing to complete (increased from 40s)
           let processed = false;
-          for (let i = 0; i < 20; i++) {
+          for (let i = 0; i < 30; i++) {
             await sleep(2000); // Wait 2 seconds
             try {
               const updatedFile = await openai.files.retrieve(fileId);
@@ -92,9 +92,9 @@ export async function POST(request: Request) {
       const vectorStore = await withRetry(
         () => openai.vectorStores.files.create(vectorStoreId, { file_id: fileId }),
         'add file to vector store',
-        5, // Increased to 5 retries
-        3000, // 3 second delay between retries
-        60000 // 60 second timeout for this operation
+        5, // 5 retries
+        5000, // 5 second delay between retries
+        120000 // 120 second timeout for this operation (doubled from 60 seconds)
       );
 
       console.log(`File added successfully to vector store!`);

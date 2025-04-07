@@ -3,7 +3,10 @@ import { createErrorResponse, withRetry } from '@/lib/utils';
 import { MAX_FILE_SIZE } from '@/lib/constants';
 
 // Increase timeout for large file uploads
-export const maxDuration = 120; // 2 minutes
+export const maxDuration = 180; // 3 minutes for large file uploads
+
+// Define a safer size limit for production environments
+const PRODUCTION_SAFE_LIMIT = 100 * 1024 * 1024; // 100MB (increased from 50MB)
 
 export async function POST(request: Request) {
   console.log('Starting proxy upload process...');
@@ -35,21 +38,41 @@ export async function POST(request: Request) {
       return NextResponse.json(response, { status });
     }
 
-    console.log(`Received file: ${file.name}, size: ${file.size} bytes (${Math.round(file.size / 1024 / 1024 * 10) / 10} MB)`);
+    const fileSizeMB = Math.round(file.size / (1024 * 1024) * 10) / 10;
+    console.log(`Received file: ${file.name}, size: ${file.size} bytes (${fileSizeMB} MB)`);
     
     // Log file details for debugging
     console.log(`File type: ${file.type || 'not specified'}`);
     console.log(`Last modified: ${new Date(file.lastModified).toISOString()}`);
 
-    // Check file size
+    // More strict size check for production
+    const isProduction = process.env.NODE_ENV === 'production';
+    if (isProduction && file.size > PRODUCTION_SAFE_LIMIT) {
+      console.error(`File too large for production: ${file.size} bytes (${fileSizeMB} MB)`);
+      const { response, status } = createErrorResponse(
+        'File too large for production environment',
+        new Error(`File size exceeds the ${PRODUCTION_SAFE_LIMIT / (1024 * 1024)}MB limit recommended for production deployments.`),
+        413
+      );
+      return NextResponse.json(response, { status });
+    }
+
+    // Check absolute file size limit
     if (file.size > MAX_FILE_SIZE) {
-      console.error(`File too large: ${file.size} bytes (${Math.round(file.size / 1024 / 1024 * 10) / 10} MB)`);
+      console.error(`File too large: ${file.size} bytes (${fileSizeMB} MB)`);
       const { response, status } = createErrorResponse(
         'File too large',
         new Error(`File size exceeds the ${MAX_FILE_SIZE / (1024 * 1024)}MB limit`),
-        400
+        413
       );
       return NextResponse.json(response, { status });
+    }
+
+    // Process files chunk by chunk to avoid memory issues
+    const processInSmallChunks = file.size > 20 * 1024 * 1024;
+    
+    if (processInSmallChunks) {
+      console.log(`Large file detected. Processing ${file.name} in chunks to reduce memory usage`);
     }
 
     // Convert file to Blob with extra error handling
@@ -68,10 +91,39 @@ export async function POST(request: Request) {
       return NextResponse.json(response, { status });
     }
     
-    let blob;
+    let fileBlob;
     try {
-      blob = new Blob([arrayBuffer], { type: file.type || 'application/octet-stream' });
-      console.log(`Blob created: ${blob.size} bytes, type: ${blob.type}`);
+      // Create blob and file with memory usage consideration
+      if (processInSmallChunks) {
+        // For large files, free up memory as we go
+        const blobChunks = [];
+        const chunkSize = 5 * 1024 * 1024; // 5MB chunks
+        const totalChunks = Math.ceil(arrayBuffer.byteLength / chunkSize);
+        
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * chunkSize;
+          const end = Math.min(start + chunkSize, arrayBuffer.byteLength);
+          const chunk = arrayBuffer.slice(start, end);
+          blobChunks.push(new Blob([chunk], { type: file.type || 'application/octet-stream' }));
+          
+          // Log progress for very large files
+          if (i % 5 === 0 || i === totalChunks - 1) {
+            console.log(`Processed chunk ${i+1}/${totalChunks} of ${file.name}`);
+          }
+          
+          // Allow GC to run between chunks
+          await new Promise(r => setTimeout(r, 10));
+        }
+        
+        const blob = new Blob(blobChunks, { type: file.type || 'application/octet-stream' });
+        fileBlob = new File([blob], file.name, { type: file.type || 'application/octet-stream' });
+        console.log(`Blob created from chunks: ${blob.size} bytes, type: ${blob.type}`);
+      } else {
+        // For smaller files, process normally
+        const blob = new Blob([arrayBuffer], { type: file.type || 'application/octet-stream' });
+        fileBlob = new File([blob], file.name, { type: file.type || 'application/octet-stream' });
+        console.log(`Blob created: ${blob.size} bytes, type: ${blob.type}`);
+      }
     } catch (blobError) {
       console.error('Error creating Blob:', blobError);
       const { response, status } = createErrorResponse(
@@ -87,9 +139,8 @@ export async function POST(request: Request) {
     openaiFormData.append('purpose', 'assistants');
     
     try {
-      const fileForUpload = new File([blob], file.name, { type: file.type || 'application/octet-stream' });
-      openaiFormData.append('file', fileForUpload);
-      console.log(`FormData prepared for OpenAI API with file: ${fileForUpload.name}, size: ${fileForUpload.size} bytes`);
+      openaiFormData.append('file', fileBlob);
+      console.log(`FormData prepared for OpenAI API with file: ${fileBlob.name}, size: ${fileBlob.size} bytes`);
     } catch (fileError) {
       console.error('Error creating File object:', fileError);
       const { response, status } = createErrorResponse(
@@ -108,6 +159,9 @@ export async function POST(request: Request) {
       throw new Error('OpenAI API key not available');
     }
 
+    // Adjust timeout based on file size
+    const timeoutMs = Math.min(90000, Math.max(30000, file.size / 1024)); // 30-90 seconds based on size
+    
     const responseData = await withRetry(async () => {
       console.log(`Sending OpenAI API request for file: ${file.name}`);
       const openaiResponse = await fetch('https://api.openai.com/v1/files', {
@@ -146,7 +200,7 @@ export async function POST(request: Request) {
         console.error('Raw response text:', responseText);
         throw new Error('Invalid response from OpenAI API');
       }
-    }, 'upload file to OpenAI', 5, 5000, 90000); // 5 retries, 5s delay, 90s timeout
+    }, 'upload file to OpenAI', 5, 5000, timeoutMs); // 5 retries, 5s delay, dynamic timeout
 
     console.log(`File uploaded successfully! File ID: ${responseData.id}`);
     return NextResponse.json(responseData);
@@ -154,6 +208,18 @@ export async function POST(request: Request) {
     console.error('Error in proxy upload:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`Error details: ${errorMessage}`);
+    
+    // Check for specific memory-related errors
+    if (errorMessage.includes('memory') || 
+        errorMessage.includes('heap') || 
+        errorMessage.includes('Killed') ||
+        errorMessage.includes('Out of memory')) {
+      console.error('Server out of memory detected');
+      return NextResponse.json({ 
+        error: 'Server memory limit exceeded',
+        message: 'The server ran out of memory while processing this file. Please try a smaller file (under 100MB).'
+      }, { status: 507 }); // 507 Insufficient Storage
+    }
     
     // Check for timeout errors specifically
     if (errorMessage.includes('timed out') || errorMessage.includes('timeout')) {
