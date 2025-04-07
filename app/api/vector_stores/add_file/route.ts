@@ -4,6 +4,8 @@ import { openai } from '@/lib/openai';
 
 type FileStatus = 'error' | 'processed' | 'processing' | 'uploaded';
 
+export const maxDuration = 60; // Set max duration to 60 seconds for this route
+
 export async function POST(request: Request) {
   console.log('Starting add file to vector store process...');
 
@@ -26,7 +28,9 @@ export async function POST(request: Request) {
     try {
       const fileDetails = await withRetry(
         () => openai.files.retrieve(fileId),
-        'retrieve file details'
+        'retrieve file details',
+        3, // 3 retries
+        2000 // 2 second delay between retries
       );
       console.log(
         `File status check: ID: ${fileId}, Status: ${fileDetails.status}, Purpose: ${fileDetails.purpose}`
@@ -40,8 +44,9 @@ export async function POST(request: Request) {
         if (status === 'processing') {
           console.log('File is still processing. Waiting for it to complete...');
 
-          // Wait for up to 10 seconds for processing to complete
-          for (let i = 0; i < 5; i++) {
+          // Wait for up to 20 seconds for processing to complete
+          let processed = false;
+          for (let i = 0; i < 10; i++) {
             await sleep(2000); // Wait 2 seconds
             const updatedFile = await openai.files.retrieve(fileId);
             const updatedStatus = updatedFile.status as FileStatus;
@@ -49,12 +54,17 @@ export async function POST(request: Request) {
 
             if (updatedStatus === 'processed') {
               console.log('File is now processed and ready to use.');
+              processed = true;
               break;
             }
 
             if (updatedStatus === 'error') {
               throw new Error(`File processing failed with status: ${updatedStatus}`);
             }
+          }
+          
+          if (!processed) {
+            console.log('File is still processing after waiting. Proceeding anyway...');
           }
         }
       }
@@ -70,9 +80,12 @@ export async function POST(request: Request) {
 
     // Add file to vector store with retry logic
     try {
+      console.log(`Attempting to add file ${fileId} to vector store ${vectorStoreId}...`);
       const vectorStore = await withRetry(
         () => openai.vectorStores.files.create(vectorStoreId, { file_id: fileId }),
-        'add file to vector store'
+        'add file to vector store',
+        3, // 3 retries
+        3000 // 3 second delay between retries
       );
 
       console.log(`File added successfully to vector store!`);

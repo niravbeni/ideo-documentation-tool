@@ -49,44 +49,68 @@ export default function Home() {
 
   const uploadFile = async (fileObject: { name: string; content: string; size: number }) => {
     try {
-      // Try standard upload first
+      console.log(`Attempting to upload ${fileObject.name} (${Math.round(fileObject.size / 1024 / 1024)} MB)`);
+      
+      // For larger files, use the proxy upload directly
+      if (fileObject.size > 20 * 1024 * 1024) { // 20MB threshold for direct proxy upload
+        console.log(`File size > 20MB, using proxy upload directly for ${fileObject.name}`);
+        
+        const binaryData = atob(fileObject.content);
+        const bytes = new Uint8Array(binaryData.length);
+        for (let i = 0; i < binaryData.length; i++) {
+          bytes[i] = binaryData.charCodeAt(i);
+        }
+
+        const blob = new Blob([bytes], { type: 'application/octet-stream' });
+        const fileBlob = new File([blob], fileObject.name, { type: 'application/octet-stream' });
+        const formData = new FormData();
+        formData.append('file', fileBlob);
+        formData.append('purpose', 'assistants');
+
+        console.log(`Sending ${fileObject.name} via proxy upload...`);
+        const altUploadResponse = await fetch('/api/vector_stores/proxy_upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!altUploadResponse.ok) {
+          const altError = await altUploadResponse.json();
+          console.error('Proxy upload failed:', altError);
+          throw new Error(altError.error || `Failed to upload ${fileObject.name} via proxy (Status: ${altUploadResponse.status})`);
+        }
+
+        const altUploadData = await altUploadResponse.json();
+        if (!altUploadData.id) {
+          throw new Error(`Proxy upload response missing file ID for ${fileObject.name}`);
+        }
+
+        console.log(`Successfully uploaded ${fileObject.name} via proxy (ID: ${altUploadData.id})`);
+        return altUploadData.id;
+      }
+      
+      // For smaller files, try standard upload first
+      console.log(`Attempting standard upload for ${fileObject.name}`);
       const uploadResponse = await fetch('/api/vector_stores/upload_file', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fileObject }),
       });
 
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json();
+        console.error('Standard upload failed:', errorData);
+        throw new Error(errorData.error || `Failed to upload ${fileObject.name} (Status: ${uploadResponse.status})`);
+      }
+
       const uploadData = await uploadResponse.json();
-      if (uploadResponse.ok && uploadData.id) {
+      if (uploadData.id) {
+        console.log(`Successfully uploaded ${fileObject.name} (ID: ${uploadData.id})`);
         return uploadData.id;
       }
 
-      // If standard upload fails, try alternative upload
-      const binaryData = atob(fileObject.content);
-      const bytes = new Uint8Array(binaryData.length);
-      for (let i = 0; i < binaryData.length; i++) {
-        bytes[i] = binaryData.charCodeAt(i);
-      }
-
-      const blob = new Blob([bytes], { type: 'application/octet-stream' });
-      const fileBlob = new File([blob], fileObject.name, { type: 'application/octet-stream' });
-      const formData = new FormData();
-      formData.append('file', fileBlob);
-      formData.append('purpose', 'assistants');
-
-      const altUploadResponse = await fetch('/api/vector_stores/proxy_upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const altUploadData = await altUploadResponse.json();
-      if (!altUploadResponse.ok || !altUploadData.id) {
-        throw new Error(altUploadData.error || 'Alternative upload failed');
-      }
-
-      return altUploadData.id;
+      throw new Error(`Standard upload response missing file ID for ${fileObject.name}`);
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error(`Upload error for ${fileObject.name}:`, error);
       throw error;
     }
   };

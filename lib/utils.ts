@@ -55,28 +55,78 @@ export async function withRetry<T>(
   operation: () => Promise<T>,
   operationName: string,
   maxRetries: number = MAX_RETRIES,
-  initialDelay: number = RETRY_DELAY_MS
+  initialDelay: number = RETRY_DELAY_MS,
+  timeoutMs: number = 30000 // 30 second timeout by default
 ): Promise<T> {
   let lastError: Error | unknown;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`Attempt ${attempt}/${maxRetries} for ${operationName}...`);
-      return await operation();
+      
+      // Add timeout to the operation
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        const id = setTimeout(() => {
+          clearTimeout(id);
+          reject(new Error(`Operation '${operationName}' timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      });
+      
+      // Race between the operation and the timeout
+      const result = await Promise.race([operation(), timeoutPromise]);
+      console.log(`${operationName} succeeded on attempt ${attempt}`);
+      return result as T;
     } catch (error) {
       lastError = error;
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`Attempt ${attempt} failed: ${errorMessage}`);
+      
+      // Extract and format error message for better logging
+      let errorMessage: string;
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        // Log stack trace for debugging
+        if (error.stack) {
+          console.error(`Error stack: ${error.stack}`);
+        }
+      } else if (typeof error === 'object' && error !== null) {
+        try {
+          errorMessage = JSON.stringify(error);
+        } catch {
+          errorMessage = String(error);
+        }
+      } else {
+        errorMessage = String(error);
+      }
+      
+      console.error(`Attempt ${attempt} failed for ${operationName}: ${errorMessage}`);
 
+      // Check if we should retry
       if (attempt < maxRetries) {
         const delay = initialDelay * Math.pow(2, attempt - 1); // Exponential backoff
-        console.log(`Retrying in ${delay}ms...`);
+        console.log(`Retrying ${operationName} in ${delay}ms...`);
         await sleep(delay);
+      } else {
+        console.error(`All ${maxRetries} attempts for ${operationName} failed.`);
       }
     }
   }
 
-  const finalError = lastError instanceof Error ? lastError : new Error(String(lastError));
-  console.error(`All attempts for ${operationName} failed:`, finalError);
+  // Format the final error message
+  let errorMessage = 'Operation failed after multiple attempts';
+  if (lastError instanceof Error) {
+    errorMessage = `${operationName} failed: ${lastError.message}`;
+  } else if (typeof lastError === 'object' && lastError !== null) {
+    try {
+      errorMessage = `${operationName} failed: ${JSON.stringify(lastError)}`;
+    } catch {
+      errorMessage = `${operationName} failed: ${String(lastError)}`;
+    }
+  }
+  
+  const finalError = new Error(errorMessage);
+  if (lastError instanceof Error && lastError.stack) {
+    finalError.stack = lastError.stack;
+  }
+  
+  console.error(`Final error for ${operationName}:`, finalError);
   throw finalError;
 }
