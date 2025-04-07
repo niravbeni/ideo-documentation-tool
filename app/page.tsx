@@ -575,6 +575,9 @@ Do not use any markdown formatting (no ##, **, etc.) in your response. Start eac
       setProcessedOutput(JSON.stringify(caseStudyData));
       setCaseStudyData(caseStudyData);
       setShowResults(true);
+      setIsProcessing(false);
+      setIsCreatingStore(false);
+      setProcessingStatus('');
     } catch (error) {
       console.error('Error processing PDFs:', error);
       setIsProcessing(false);
