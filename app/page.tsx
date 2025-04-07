@@ -257,6 +257,15 @@ export default function Home() {
         throw new Error('No files selected. Please select at least one PDF.');
       }
 
+      // Add warning for very large files
+      const largeFiles = selectedFiles.filter(file => file.size > 50 * 1024 * 1024);
+      if (largeFiles.length > 0) {
+        console.warn(`Processing very large files: ${largeFiles.map(f => f.name).join(', ')}`);
+        // Show informational warning but continue
+        setProcessingStatus(`Preparing to process large file(s). This may take longer...`);
+        await new Promise(resolve => setTimeout(resolve, 1500)); // Show the message briefly
+      }
+
       // Clear existing vector store
       setVectorStore({ id: '', name: '' });
       setFileSearchEnabled(false);
@@ -286,18 +295,43 @@ export default function Home() {
       let successfulFileCount = 0;
       const failedFiles = [];
       
-      for (const file of selectedFiles) {
+      // Sort files by size to process smaller files first
+      const sortedFiles = [...selectedFiles].sort((a, b) => a.size - b.size);
+      
+      for (const file of sortedFiles) {
+        const fileSizeMB = Math.round(file.size / (1024 * 1024) * 10) / 10;
         const truncatedName = file.name.length > 20 ? file.name.substring(0, 20) + '...' : file.name;
-        setProcessingStatus(`Adding ${truncatedName}`);
+        setProcessingStatus(`Adding ${truncatedName} (${fileSizeMB} MB)`);
 
         try {
+          // For very large files, give extra feedback and time
+          if (file.size > 50 * 1024 * 1024) {
+            setProcessingStatus(`Preparing large file: ${truncatedName} (${fileSizeMB} MB). This may take a moment...`);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Brief pause to show message
+          }
+          
           const fileData = await readFileAsBase64(file);
+          
+          // For large files, give additional feedback
+          if (file.size > 50 * 1024 * 1024) {
+            setProcessingStatus(`Uploading large file: ${truncatedName} (${fileSizeMB} MB)...`);
+          } else {
+            setProcessingStatus(`Uploading ${truncatedName}...`);
+          }
+          
           const fileId = await uploadFile({
             name: file.name,
             content: fileData,
             size: file.size,
           });
 
+          // Add a brief delay between files to let memory recover
+          if (file.size > 20 * 1024 * 1024) {
+            setProcessingStatus(`Preparing to add ${truncatedName} to vector store...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+          
+          setProcessingStatus(`Adding ${truncatedName} to vector store...`);
           const addFileResponse = await fetch('/api/vector_stores/add_file', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -557,14 +591,32 @@ Do not use any markdown formatting (no ##, **, etc.) in your response. Start eac
       setCaseStudyData(caseStudyData);
       setShowResults(true);
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'An unknown error occurred.');
       console.error('Error processing PDFs:', error);
-      setShowResults(false);
-      setProcessedOutput('');
-    } finally {
       setIsProcessing(false);
       setIsCreatingStore(false);
       setProcessingStatus('');
+      
+      // Special handling for large file errors
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      
+      if (errorMsg.includes('Killed') || errorMsg.includes('memory limit') || 
+          errorMsg.includes('out of memory') || errorMsg.includes('memory') ||
+          errorMsg.includes('time') || errorMsg.includes('timeout')) {
+        
+        // Try to identify which file caused the problem
+        const largeFiles = selectedFiles.filter(file => file.size > 50 * 1024 * 1024);
+        if (largeFiles.length) {
+          const fileNames = largeFiles.map(f => f.name).join(', ');
+          setError(`Server memory limit exceeded when processing large file(s): ${fileNames}. Try with smaller files or split these files into smaller parts.`);
+        } else {
+          setError(`Memory limit exceeded during processing. Please try with smaller files or fewer files at once.`);
+        }
+      } else {
+        // Default error handling
+        setError(errorMsg);
+      }
+      
+      return;
     }
   };
 
