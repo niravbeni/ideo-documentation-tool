@@ -1,9 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    // This was deprecated
-    // serverComponentsExternalPackages: [],
-  },
   serverRuntimeConfig: {
     maxFileSize: 100 * 1024 * 1024, // 100MB in bytes
   },

@@ -1,15 +1,20 @@
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
 
-// Set larger payload limits for API routes
+// Next.js 15 compatible config
 export const config = {
-  matcher: '/api/:path*',
+  matcher: [
+    /*
+     * Match all API routes:
+     * - /api/vector_stores/upload_file
+     * - /api/vector_stores/proxy_upload  
+     * - /api/vector_stores/add_file
+     * - all other API routes
+     */
+    '/api/:path*',
+  ],
 };
 
-export function middleware(request: NextRequest) {
-  // Log the path for debugging
-  console.log(`Middleware handling request to: ${request.nextUrl.pathname}`);
-  
-  // Continue processing the request, but now with properly configured limits
+// Simple middleware that just passes through the request
+export function middleware() {
   return NextResponse.next();
 } 

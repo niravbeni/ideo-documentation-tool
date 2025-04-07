@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createErrorResponse, withRetry } from '@/lib/utils';
-import { MAX_FILE_SIZE, UPLOAD_TIMEOUT } from '@/lib/constants';
+import { MAX_FILE_SIZE } from '@/lib/constants';
 
 // Increase timeout for large file uploads
-export const maxDuration = UPLOAD_TIMEOUT;
+export const maxDuration = 120; // 2 minutes
 
 export async function POST(request: Request) {
   console.log('Starting proxy upload process...');
