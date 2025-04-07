@@ -301,35 +301,20 @@ export default function Home() {
       for (const file of sortedFiles) {
         const fileSizeMB = Math.round(file.size / (1024 * 1024) * 10) / 10;
         const truncatedName = file.name.length > 20 ? file.name.substring(0, 20) + '...' : file.name;
-        setProcessingStatus(`Adding ${truncatedName} (${fileSizeMB} MB)`);
+        setProcessingStatus(`Processing ${truncatedName} (${fileSizeMB} MB)`);
 
         try {
-          // For very large files, give extra feedback and time
-          if (file.size > 50 * 1024 * 1024) {
-            setProcessingStatus(`Preparing large file: ${truncatedName} (${fileSizeMB} MB). This may take a moment...`);
-            await new Promise(resolve => setTimeout(resolve, 1000)); // Brief pause to show message
-          }
-          
           const fileData = await readFileAsBase64(file);
           
-          // For large files, give additional feedback
-          if (file.size > 50 * 1024 * 1024) {
-            setProcessingStatus(`Uploading large file: ${truncatedName} (${fileSizeMB} MB)...`);
-          } else {
-            setProcessingStatus(`Uploading ${truncatedName}...`);
-          }
-          
+          setProcessingStatus(`Uploading ${truncatedName}...`);
           const fileId = await uploadFile({
             name: file.name,
             content: fileData,
             size: file.size,
           });
 
-          // Add a brief delay between files to let memory recover
-          if (file.size > 20 * 1024 * 1024) {
-            setProcessingStatus(`Preparing to add ${truncatedName} to vector store...`);
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          }
+          // Brief delay between files
+          await new Promise(resolve => setTimeout(resolve, 500));
           
           setProcessingStatus(`Adding ${truncatedName} to vector store...`);
           const addFileResponse = await fetch('/api/vector_stores/add_file', {
@@ -596,23 +581,13 @@ Do not use any markdown formatting (no ##, **, etc.) in your response. Start eac
       setIsCreatingStore(false);
       setProcessingStatus('');
       
-      // Special handling for large file errors
+      // Detect memory-related errors
       const errorMsg = error instanceof Error ? error.message : String(error);
       
       if (errorMsg.includes('Killed') || errorMsg.includes('memory limit') || 
-          errorMsg.includes('out of memory') || errorMsg.includes('memory') ||
-          errorMsg.includes('time') || errorMsg.includes('timeout')) {
-        
-        // Try to identify which file caused the problem
-        const largeFiles = selectedFiles.filter(file => file.size > 50 * 1024 * 1024);
-        if (largeFiles.length) {
-          const fileNames = largeFiles.map(f => f.name).join(', ');
-          setError(`Server memory limit exceeded when processing large file(s): ${fileNames}. Try with smaller files or split these files into smaller parts.`);
-        } else {
-          setError(`Memory limit exceeded during processing. Please try with smaller files or fewer files at once.`);
-        }
+          errorMsg.includes('out of memory')) {
+        setError(`Memory limit exceeded. Please upgrade your server or try with smaller files.`);
       } else {
-        // Default error handling
         setError(errorMsg);
       }
       
