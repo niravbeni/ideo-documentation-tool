@@ -74,18 +74,64 @@ export default function Home() {
         });
 
         if (!altUploadResponse.ok) {
-          const altError = await altUploadResponse.json();
-          console.error('Proxy upload failed:', altError);
-          throw new Error(altError.error || `Failed to upload ${fileObject.name} via proxy (Status: ${altUploadResponse.status})`);
+          // Safely handle the response which might not be JSON
+          const contentType = altUploadResponse.headers.get('content-type') || '';
+          
+          // For JSON responses
+          if (contentType.includes('application/json')) {
+            let altError;
+            // Try to parse as JSON, fall back to text if it fails
+            try {
+              altError = await altUploadResponse.json();
+              console.error('Proxy upload failed:', altError);
+              throw new Error(altError.error || `Failed to upload ${fileObject.name} via proxy (Status: ${altUploadResponse.status})`);
+            } catch {
+              // Intentionally empty catch - we'll handle the text response below
+            }
+            
+            // If JSON parsing failed, handle as text
+            const errorText = await altUploadResponse.text();
+            console.error('Proxy upload failed with non-JSON response:', 
+              errorText.slice(0, 200) + (errorText.length > 200 ? '...' : ''));
+            
+            // If it's an HTML response (common for proxy/gateway errors)
+            if (errorText.trim().startsWith('<!DOCTYPE') || errorText.trim().startsWith('<html')) {
+              throw new Error(`Server error when uploading ${fileObject.name}. The file may be too large for the server to handle.`);
+            }
+            
+            throw new Error(`Failed to upload ${fileObject.name} via proxy (Status: ${altUploadResponse.status}): ${errorText.slice(0, 100)}...`);
+          } else {
+            // Not JSON, get the text directly
+            const errorText = await altUploadResponse.text();
+            console.error('Proxy upload failed with non-JSON response:', 
+              errorText.slice(0, 200) + (errorText.length > 200 ? '...' : ''));
+            throw new Error(`Failed to upload ${fileObject.name} via proxy (Status: ${altUploadResponse.status})`);
+          }
         }
 
-        const altUploadData = await altUploadResponse.json();
-        if (!altUploadData.id) {
-          throw new Error(`Proxy upload response missing file ID for ${fileObject.name}`);
-        }
+        // Safely parse the response
+        try {
+          const responseText = await altUploadResponse.text();
+          let altUploadData;
 
-        console.log(`Successfully uploaded ${fileObject.name} via proxy (ID: ${altUploadData.id})`);
-        return altUploadData.id;
+          try {
+            altUploadData = JSON.parse(responseText);
+          } catch (error) {
+            console.error('Failed to parse proxy upload response:', error);
+            console.error('Response content:', responseText.slice(0, 200));
+            throw new Error(`Invalid response when uploading ${fileObject.name}. Response was not valid JSON.`);
+          }
+
+          if (!altUploadData.id) {
+            throw new Error(`Proxy upload response missing file ID for ${fileObject.name}`);
+          }
+
+          console.log(`Successfully uploaded ${fileObject.name} via proxy (ID: ${altUploadData.id})`);
+          return altUploadData.id;
+        } catch (error) {
+          console.error('Error parsing proxy upload response:', error);
+          throw new Error(`Could not process response for ${fileObject.name}: ${error instanceof Error ? error.message : String(error)}`);
+        }
       }
       
       // For smaller files, try standard upload first
@@ -97,18 +143,48 @@ export default function Home() {
       });
 
       if (!uploadResponse.ok) {
-        const errorData = await uploadResponse.json();
-        console.error('Standard upload failed:', errorData);
-        throw new Error(errorData.error || `Failed to upload ${fileObject.name} (Status: ${uploadResponse.status})`);
+        // Safely handle potential non-JSON responses
+        try {
+          const contentType = uploadResponse.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            const errorData = await uploadResponse.json();
+            console.error('Standard upload failed:', errorData);
+            throw new Error(errorData.error || `Failed to upload ${fileObject.name} (Status: ${uploadResponse.status})`);
+          } else {
+            const errorText = await uploadResponse.text();
+            console.error('Standard upload failed with non-JSON response:', 
+              errorText.slice(0, 200) + (errorText.length > 200 ? '...' : ''));
+            throw new Error(`Failed to upload ${fileObject.name} (Status: ${uploadResponse.status})`);
+          }
+        } catch (error) {
+          console.error('Error handling upload response:', error);
+          throw new Error(`Failed to upload ${fileObject.name}: ${error instanceof Error ? error.message : String(error)}`);
+        }
       }
 
-      const uploadData = await uploadResponse.json();
-      if (uploadData.id) {
-        console.log(`Successfully uploaded ${fileObject.name} (ID: ${uploadData.id})`);
-        return uploadData.id;
+      // Safely parse the success response
+      try {
+        const responseText = await uploadResponse.text();
+        let uploadData;
+        
+        try {
+          uploadData = JSON.parse(responseText);
+        } catch (error) {
+          console.error('Failed to parse standard upload response:', error);
+          console.error('Response content:', responseText.slice(0, 200));
+          throw new Error(`Invalid response when uploading ${fileObject.name}. Response was not valid JSON.`);
+        }
+        
+        if (uploadData.id) {
+          console.log(`Successfully uploaded ${fileObject.name} (ID: ${uploadData.id})`);
+          return uploadData.id;
+        }
+        
+        throw new Error(`Standard upload response missing file ID for ${fileObject.name}`);
+      } catch (error) {
+        console.error('Error parsing standard upload response:', error);
+        throw new Error(`Could not process response for ${fileObject.name}: ${error instanceof Error ? error.message : String(error)}`);
       }
-
-      throw new Error(`Standard upload response missing file ID for ${fileObject.name}`);
     } catch (error) {
       console.error(`Upload error for ${fileObject.name}:`, error);
       throw error;
@@ -177,16 +253,39 @@ export default function Home() {
           if (!addFileResponse.ok) {
             // If the response is not OK, check if it's a partial success response
             try {
-              const responseData = await addFileResponse.json();
+              // Check content type first to avoid parsing non-JSON responses
+              const contentType = addFileResponse.headers.get('content-type') || '';
               
-              // Check for partial success - file is being processed but response failed
-              if (responseData.status === 'processing' && responseData.id === vectorStoreId) {
-                console.log(`File ${file.name} is being processed asynchronously. Continuing...`);
-                successfulFileCount++;
-                continue; // Skip adding to failedFiles, we treat this as partial success
+              if (contentType.includes('application/json')) {
+                const responseData = await addFileResponse.json();
+                
+                // Check for partial success - file is being processed but response failed
+                if (responseData.status === 'processing' && responseData.id === vectorStoreId) {
+                  console.log(`File ${file.name} is being processed asynchronously. Continuing...`);
+                  successfulFileCount++;
+                  continue; // Skip adding to failedFiles, we treat this as partial success
+                }
+              } else {
+                // Not JSON, could be HTML error page, get the text
+                const responseText = await addFileResponse.text();
+                console.error(`Non-JSON error response for ${file.name}:`, 
+                  responseText.slice(0, 200) + (responseText.length > 200 ? '...' : ''));
+                
+                // Check if it's an HTML response (typical for gateway timeouts or proxies)
+                if (responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+                  console.log(`HTML error response detected for ${file.name}, treating as server timeout`);
+                  // For HTML errors on large files, treat as processing but with warnings
+                  if (file.size > 20 * 1024 * 1024) {
+                    console.log(`Large file ${file.name} may still be processing asynchronously despite error. Continuing...`);
+                    successfulFileCount++;
+                    failedFiles.push(`${file.name} (partial - may still be processing)`);
+                    continue;
+                  }
+                }
               }
-            } catch (parseError) {
-              console.error('Failed to parse response:', parseError);
+            } catch (error) {
+              // Error parsing response - log but continue processing other files
+              console.error(`Error parsing response for ${file.name}:`, error);
             }
             
             // If we get here, it's a real error
