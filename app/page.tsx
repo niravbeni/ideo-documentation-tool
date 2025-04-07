@@ -153,6 +153,9 @@ export default function Home() {
       });
 
       // Process files
+      let successfulFileCount = 0;
+      const failedFiles = [];
+      
       for (const file of selectedFiles) {
         const truncatedName = file.name.length > 20 ? file.name.substring(0, 20) + '...' : file.name;
         setProcessingStatus(`Adding ${truncatedName}`);
@@ -172,13 +175,45 @@ export default function Home() {
           });
 
           if (!addFileResponse.ok) {
-            throw new Error(`Error adding ${file.name} to vector store`);
+            // If the response is not OK, check if it's a partial success response
+            try {
+              const responseData = await addFileResponse.json();
+              
+              // Check for partial success - file is being processed but response failed
+              if (responseData.status === 'processing' && responseData.id === vectorStoreId) {
+                console.log(`File ${file.name} is being processed asynchronously. Continuing...`);
+                successfulFileCount++;
+                continue; // Skip adding to failedFiles, we treat this as partial success
+              }
+            } catch (parseError) {
+              console.error('Failed to parse response:', parseError);
+            }
+            
+            // If we get here, it's a real error
+            failedFiles.push(file.name);
+            console.error(`Error adding ${file.name} to vector store: ${addFileResponse.status}`);
+            continue; // Continue with next file instead of throwing
+          } else {
+            successfulFileCount++;
           }
         } catch (error) {
-          throw new Error(
-            `Error processing ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`
-          );
+          console.error(`Error processing ${file.name}:`, error);
+          failedFiles.push(file.name);
+          // Continue with other files instead of throwing
+          continue;
         }
+      }
+
+      // If no files were processed successfully, throw an error
+      if (successfulFileCount === 0) {
+        throw new Error(`Failed to process any files. ${failedFiles.join(', ')}`);
+      }
+      
+      // If some files failed but others succeeded, show a warning but continue
+      if (failedFiles.length > 0) {
+        console.warn(`Some files failed to process: ${failedFiles.join(', ')}`);
+        // Set a warning but continue with the files that did work
+        setError(`Warning: Some files could not be processed: ${failedFiles.join(', ')}`);
       }
 
       setProcessingStatus('Processing PDFs...');

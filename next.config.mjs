@@ -1,13 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverComponentsExternalPackages: [],
+    // This was deprecated
+    // serverComponentsExternalPackages: [],
   },
-  api: {
-    bodyParser: {
-      sizeLimit: '100mb'
-    },
-    responseLimit: '100mb'
+  serverRuntimeConfig: {
+    maxFileSize: 100 * 1024 * 1024, // 100MB in bytes
+  },
+  webpack: (config) => {
+    config.externals = [...config.externals, 'canvas', 'jsdom'];
+    return config;
   }
 };
 

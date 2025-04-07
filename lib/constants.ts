@@ -39,6 +39,10 @@ Your task is to extract and format information exactly as requested, following t
 - Ensure all points are specific and actionable
 `;
 
-// File size limits
+// File size limits - the constant remains the same but we ensure it works across environments
 export const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB in bytes
-export const MAX_FILE_SIZE_MB = '100mb'; // 100MB as string for Next.js config 
+export const MAX_FILE_SIZE_MB = 100; // 100MB as number value
+
+// API timeouts
+export const API_TIMEOUT = 60; // 60 seconds timeout for API routes
+export const UPLOAD_TIMEOUT = 120; // 120 seconds timeout for upload operations 

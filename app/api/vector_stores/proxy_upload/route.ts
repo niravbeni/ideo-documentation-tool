@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createErrorResponse, withRetry } from '@/lib/utils';
-import { MAX_FILE_SIZE } from '@/lib/constants';
+import { MAX_FILE_SIZE, UPLOAD_TIMEOUT } from '@/lib/constants';
 
-export const maxDuration = 60; // Set max duration to 60 seconds for this route
+// Increase timeout for large file uploads
+export const maxDuration = UPLOAD_TIMEOUT;
 
 export async function POST(request: Request) {
   console.log('Starting proxy upload process...');
@@ -51,20 +52,53 @@ export async function POST(request: Request) {
       return NextResponse.json(response, { status });
     }
 
-    // Convert file to Blob
+    // Convert file to Blob with extra error handling
     console.log(`Converting file to ArrayBuffer...`);
-    const arrayBuffer = await file.arrayBuffer();
-    console.log(`ArrayBuffer created: ${arrayBuffer.byteLength} bytes`);
+    let arrayBuffer;
+    try {
+      arrayBuffer = await file.arrayBuffer();
+      console.log(`ArrayBuffer created: ${arrayBuffer.byteLength} bytes`);
+    } catch (bufferError) {
+      console.error('Error creating ArrayBuffer:', bufferError);
+      const { response, status } = createErrorResponse(
+        'Failed to process file data',
+        bufferError,
+        500
+      );
+      return NextResponse.json(response, { status });
+    }
     
-    const blob = new Blob([arrayBuffer], { type: file.type || 'application/octet-stream' });
-    console.log(`Blob created: ${blob.size} bytes, type: ${blob.type}`);
+    let blob;
+    try {
+      blob = new Blob([arrayBuffer], { type: file.type || 'application/octet-stream' });
+      console.log(`Blob created: ${blob.size} bytes, type: ${blob.type}`);
+    } catch (blobError) {
+      console.error('Error creating Blob:', blobError);
+      const { response, status } = createErrorResponse(
+        'Failed to create Blob from file data',
+        blobError,
+        500
+      );
+      return NextResponse.json(response, { status });
+    }
 
     // Create a new FormData object for the OpenAI API request
     const openaiFormData = new FormData();
     openaiFormData.append('purpose', 'assistants');
-    const fileForUpload = new File([blob], file.name, { type: file.type || 'application/octet-stream' });
-    openaiFormData.append('file', fileForUpload);
-    console.log(`FormData prepared for OpenAI API with file: ${fileForUpload.name}, size: ${fileForUpload.size} bytes`);
+    
+    try {
+      const fileForUpload = new File([blob], file.name, { type: file.type || 'application/octet-stream' });
+      openaiFormData.append('file', fileForUpload);
+      console.log(`FormData prepared for OpenAI API with file: ${fileForUpload.name}, size: ${fileForUpload.size} bytes`);
+    } catch (fileError) {
+      console.error('Error creating File object:', fileError);
+      const { response, status } = createErrorResponse(
+        'Failed to prepare file for upload',
+        fileError,
+        500
+      );
+      return NextResponse.json(response, { status });
+    }
 
     console.log(`Sending direct request to OpenAI API for file: ${file.name}`);
 
@@ -112,7 +146,7 @@ export async function POST(request: Request) {
         console.error('Raw response text:', responseText);
         throw new Error('Invalid response from OpenAI API');
       }
-    }, 'upload file to OpenAI', 3, 3000, 45000); // 3 retries, 3s delay, 45s timeout
+    }, 'upload file to OpenAI', 5, 5000, 90000); // 5 retries, 5s delay, 90s timeout
 
     console.log(`File uploaded successfully! File ID: ${responseData.id}`);
     return NextResponse.json(responseData);
@@ -120,6 +154,15 @@ export async function POST(request: Request) {
     console.error('Error in proxy upload:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`Error details: ${errorMessage}`);
+    
+    // Check for timeout errors specifically
+    if (errorMessage.includes('timed out') || errorMessage.includes('timeout')) {
+      console.error('Upload timeout detected. The file may be too large or the server connection is slow.');
+      return NextResponse.json({ 
+        error: 'Upload timeout',
+        message: 'The upload timed out. The file may still be processing or may be too large for the current connection.'
+      }, { status: 504 }); // Gateway Timeout
+    }
     
     const { response, status } = createErrorResponse('Failed to upload file', error);
     return NextResponse.json(response, { status });
