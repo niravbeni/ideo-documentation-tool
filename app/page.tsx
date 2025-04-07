@@ -394,12 +394,16 @@ export default function Home() {
       const systemPrompt = `You are a document analysis expert specializing in extracting structured information from IDEO client projects.
 Your task is to extract and format information exactly as requested, following these guidelines:
 - Extract only factual information from the provided content - do not invent or assume details
-- Use complete sentences and clear language
+- Use DIRECT QUOTES and EXACT PHRASING from the original document whenever possible
+- Copy specific technical terms, methodologies, and unique language from the original text
+- Prioritize specific examples over general descriptions
+- Include actual metrics, statistics, and quantitative data mentioned in the document
+- Capture the authentic voice and tone of the original document
 - Format responses exactly as specified in the prompt
 - DO NOT use ANY markdown formatting (no **, #, -, *, etc.) in your response
-- Keep responses focused and concise while maintaining necessary detail
-- Ensure all points are specific and actionable
-- Start each section directly with the content (no markdown headers or formatting)`;
+- When extracting examples, include the most unique and detailed ones from the document
+- Start each section directly with the content (no markdown headers or formatting)
+- When searching the document, look for sections about methods, processes, outcomes, and client feedback`;
 
       // Define content prompts
       const summaryPrompt = `Extract key information for a project overview with the following structure:
@@ -422,7 +426,7 @@ Insights:
 
 Format the Key Points and Insights exactly as numbered lists as shown above. Each point must be a single complete sentence. Do not use any markdown formatting in your response.`;
 
-      const insideIDEOPrompt = `Extract detailed case study information with the following structure:
+      const insideIDEOPrompt = `Extract detailed case study information with the following structure, using the EXACT language, terminology, and phrasing from the original document:
 
 Client:
 One line identifying the client organization name. Keep it brief.
@@ -434,13 +438,38 @@ Tagline:
 A brief phrase that captures the essence of the project (one line).
 
 Challenge:
-Provide a detailed description (3-5 paragraphs) of the business context, primary issues faced, market conditions, user needs, and the specific challenge. Include what was at stake for the client and why this challenge was significant. If possible, frame part of the challenge as a "How might we" question.
+Provide a detailed description (3-5 paragraphs) of the business context, primary issues faced, market conditions, user needs, and the specific challenge. Include what was at stake for the client and why this challenge was significant.
+
+IMPORTANT FOR CHALLENGE SECTION:
+- Use DIRECT QUOTES from the document when describing the problem
+- Include 2-3 SPECIFIC EXAMPLES of challenges mentioned in the document
+- Maintain the original tone and terminology used in the document
+- If present in the document, frame part of the challenge as a "How might we" question
+- Include actual numbers, statistics, or metrics mentioned about the challenge
 
 Design/Work:
-Explain thoroughly (3-5 paragraphs) the approach, methods, and strategies used. Include information about the design process, research conducted, prototyping techniques, key insights, collaboration methods, and iteration toward the final solution. Describe specific design interventions, tools, or frameworks created.
+Explain thoroughly (3-5 paragraphs) the specific approaches, methods, and strategies used. 
+
+IMPORTANT FOR DESIGN/WORK SECTION:
+- Use DIRECT QUOTES from the document when describing processes and approaches
+- Mention specific methodologies, frameworks, or tools that were used BY NAME
+- Include 2-3 CONCRETE EXAMPLES of activities that were conducted
+- Detail the exact research methods used (interviews, workshops, prototypes, etc.)
+- Describe specific design interventions with their actual names from the document
+- Maintain the original technical terminology used in the document
 
 Impact/Outcome:
-Detail comprehensively (3-5 paragraphs) the concrete results and measurable outcomes. Include quantitative metrics when available, qualitative feedback from stakeholders, how the solution transformed the client's business or user experience, and any ongoing effects. Describe how the solution addressed the original challenge and any unexpected positive outcomes.
+Detail comprehensively (3-5 paragraphs) the concrete results and measurable outcomes.
+
+IMPORTANT FOR IMPACT/OUTCOME SECTION:
+- Use DIRECT QUOTES from the document when describing results
+- Include ALL specific metrics, percentages, or quantitative results mentioned
+- Detail 2-3 SPECIFIC EXAMPLES of how the solution helped the client
+- Include actual feedback or testimonials from clients/users if present
+- Describe how the solution addressed the original challenge using SPECIFIC DETAILS
+- Maintain the original language and voice from the document
+
+For all sections, use the EXACT phrases, unique terminology, and specific language from the document rather than generalizing. Copy the actual words used in the original text whenever possible.
 
 Do not use any markdown formatting (no ##, **, etc.) in your response. Start each section directly with the section name followed by a colon.`;
 

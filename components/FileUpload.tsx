@@ -81,7 +81,7 @@ export default function FileUpload({ onFilesSelected, children }: FileUploadProp
       error: '',
       files,
     };
-  }, []);
+  }, [MAX_RECOMMENDED_SIZE]);
 
   const handleUploadFiles = useCallback(
     async (selectedFiles: File[]) => {
