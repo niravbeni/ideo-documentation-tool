@@ -347,7 +347,10 @@ When working with documents:
 2. Look in multiple sections of the document, not just summaries
 3. Use direct quotes when describing processes, methodologies, and outcomes
 4. Extract exact phrasing and terminology rather than paraphrasing
-5. Prioritize sections that contain detailed information about methods, results and client feedback`;
+5. Prioritize sections that contain detailed information about methods, results and client feedback
+6. FOCUS ON THE DESIGN/WORK SECTION - This should be the most detailed with specific methodologies
+7. For the Challenge section, focus on the core issues rather than listing all challenges
+8. Balance the content across sections - don't make any one section overwhelm the others`;
 
     // Call the turn_response API with the structured prompts
     const response = await fetch('/api/turn_response', {

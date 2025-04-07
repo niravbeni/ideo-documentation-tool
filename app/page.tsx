@@ -441,21 +441,25 @@ Challenge:
 Provide a detailed description (3-5 paragraphs) of the business context, primary issues faced, market conditions, user needs, and the specific challenge. Include what was at stake for the client and why this challenge was significant.
 
 IMPORTANT FOR CHALLENGE SECTION:
-- Use DIRECT QUOTES from the document when describing the problem
-- Include 2-3 SPECIFIC EXAMPLES of challenges mentioned in the document
+- Use DIRECT QUOTES from the document when describing the problem but keep them brief
+- Include just 1-2 SPECIFIC EXAMPLES of challenges mentioned in the document
+- Focus more on the business context and key issues rather than listing all challenges
 - Maintain the original tone and terminology used in the document
 - If present in the document, frame part of the challenge as a "How might we" question
-- Include actual numbers, statistics, or metrics mentioned about the challenge
+- Include important numbers, statistics, or metrics mentioned about the challenge
 
 Design/Work:
 Explain thoroughly (3-5 paragraphs) the specific approaches, methods, and strategies used. 
 
 IMPORTANT FOR DESIGN/WORK SECTION:
+- This section needs the MOST DETAIL and SPECIFICITY
 - Use DIRECT QUOTES from the document when describing processes and approaches
-- Mention specific methodologies, frameworks, or tools that were used BY NAME
-- Include 2-3 CONCRETE EXAMPLES of activities that were conducted
-- Detail the exact research methods used (interviews, workshops, prototypes, etc.)
+- Mention ALL specific methodologies, frameworks, or tools that were used BY NAME
+- Include 3-4 CONCRETE EXAMPLES of activities that were conducted
+- Detail the exact research methods used with specifics (e.g., "17 interviews with healthcare providers")
 - Describe specific design interventions with their actual names from the document
+- Include details about team composition, timeline, and process if mentioned
+- Focus on unique aspects of the design approach that made this project special
 - Maintain the original technical terminology used in the document
 
 Impact/Outcome:
