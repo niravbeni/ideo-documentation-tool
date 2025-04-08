@@ -47,6 +47,22 @@ export function CaseStudyOutput({ assistantMessage, onSave, caseStudyData }: Cas
       return {};
     }
 
+    // Special handling for timeout errors which are formatted specially
+    if (message.includes('The response timed out') && message.includes('Summary:')) {
+      console.log('Detected timeout response message');
+      setParseError('The response timed out. The document may be too large or complex for processing.');
+      
+      // Extract any structured data that was returned
+      return parseContent(message);
+    }
+
+    // Check if the message is an error message
+    if (message.startsWith('Error:')) {
+      console.error('Error message received:', message);
+      setParseError(message);
+      return {};
+    }
+
     // Check if the message is an error or request for more information
     if (
       !message.includes('Summary:') &&
@@ -67,10 +83,12 @@ export function CaseStudyOutput({ assistantMessage, onSave, caseStudyData }: Cas
       try {
         jsonContent = JSON.parse(message);
         if (typeof jsonContent === 'object' && jsonContent !== null) {
+          console.log('Successfully parsed JSON content');
           return jsonContent as ParsedContent;
         }
       } catch {
         // Not valid JSON, proceed with text parsing
+        console.log('Not valid JSON, proceeding with text parsing');
       }
 
       // Split by section headers
@@ -79,7 +97,7 @@ export function CaseStudyOutput({ assistantMessage, onSave, caseStudyData }: Cas
           /\n\n(?=Summary:|Key Points:|Insights:|Client:|Title:|Tagline:|Challenge:|Design\/Work:|Impact:|Impact\/Outcome:)/
         )
         .filter(Boolean);
-      console.log('Parsed sections:', sections);
+      console.log('Parsed sections count:', sections.length);
 
       const parsedContent: ParsedContent = {};
 

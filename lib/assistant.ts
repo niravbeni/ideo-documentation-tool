@@ -8,6 +8,8 @@ interface Annotation {
   [key: string]: any;
 }
 import { functionsMap } from '@/config/functions';
+import { withRetry } from '@/lib/utils';
+import { OPENAI_CONFIG } from '@/lib/constants';
 
 export interface ContentItem {
   type: 'input_text' | 'output_text' | 'refusal' | 'output_audio';
@@ -352,27 +354,38 @@ When working with documents:
 7. For the Challenge section, focus on the core issues rather than listing all challenges
 8. Balance the content across sections - don't make any one section overwhelm the others`;
 
-    // Call the turn_response API with the structured prompts
-    const response = await fetch('/api/turn_response', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+    // Setup request data
+    const requestData = {
+      messages: [
+        {
+          role: 'system',
+          content: enhancedPrompt,
+        },
+        {
+          role: 'user',
+          content: content,
+        },
+      ],
+      // Tools will be added automatically by the API
+      vectorStoreId: vectorStoreId,
+    };
+
+    // Use withRetry to handle potential timeouts
+    const response = await withRetry(
+      async () => {
+        return fetch('/api/turn_response', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestData),
+        });
       },
-      body: JSON.stringify({
-        messages: [
-          {
-            role: 'system',
-            content: enhancedPrompt,
-          },
-          {
-            role: 'user',
-            content: content,
-          },
-        ],
-        // Tools will be added automatically by the API
-        vectorStoreId: vectorStoreId,
-      }),
-    });
+      'fetch turn_response', 
+      3,                     // 3 retries
+      5000,                  // 5 second delay between retries
+      OPENAI_CONFIG.TIMEOUT_MS  // Use the timeout from constants (120s)
+    );
 
     if (!response.ok) {
       let errorText = `Error from API: ${response.status}`;
@@ -394,53 +407,95 @@ When working with documents:
     let fullText = '';
     let buffer = '';
     let done = false;
+    let streamTimeout: NodeJS.Timeout | null = null;
 
-    while (!done) {
-      const { value, done: doneReading } = await reader.read();
-      done = doneReading;
-
-      if (done) break;
-
-      const chunk = decoder.decode(value);
-      buffer += chunk;
-
-      // Process complete SSE events in the buffer
-      const lines = buffer.split('\n\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const dataStr = line.slice(6);
-
-          if (dataStr === '[DONE]') {
-            done = true;
-            break;
+    // Add a safety timeout for the stream processing
+    const streamPromise = new Promise<string>(async (resolve, reject) => {
+      try {
+        while (!done) {
+          // Clear previous timeout if it exists
+          if (streamTimeout) {
+            clearTimeout(streamTimeout);
           }
+          
+          // Set a new timeout for reading from the stream
+          streamTimeout = setTimeout(() => {
+            reject(new Error('Stream processing timed out'));
+          }, 60000); // 60 second timeout for stream processing
+          
+          const { value, done: doneReading } = await reader.read();
+          done = doneReading;
 
-          try {
-            const data = JSON.parse(dataStr);
+          if (done) break;
 
-            // Extract text from output_text delta events
-            if (data.event === 'response.output_text.delta' && data.data.delta) {
-              fullText += data.data.delta;
+          const chunk = decoder.decode(value);
+          buffer += chunk;
+
+          // Process complete SSE events in the buffer
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const dataStr = line.slice(6);
+
+              if (dataStr === '[DONE]') {
+                done = true;
+                break;
+              }
+
+              try {
+                const data = JSON.parse(dataStr);
+
+                // Extract text from output_text delta events
+                if (data.event === 'response.output_text.delta' && data.data.delta) {
+                  fullText += data.data.delta;
+                }
+
+                // Log file search events to help with debugging
+                if (data.event?.includes('file_search')) {
+                  console.log(
+                    'File search event:',
+                    data.event,
+                    JSON.stringify(data.data).substring(0, 200)
+                  );
+                }
+              } catch (e) {
+                console.error('Error parsing data:', e);
+              }
             }
-
-            // Log file search events to help with debugging
-            if (data.event?.includes('file_search')) {
-              console.log(
-                'File search event:',
-                data.event,
-                JSON.stringify(data.data).substring(0, 200)
-              );
-            }
-          } catch (e) {
-            console.error('Error parsing data:', e);
           }
         }
+        
+        // Clear the timeout if we're done
+        if (streamTimeout) {
+          clearTimeout(streamTimeout);
+        }
+        
+        resolve(fullText.trim());
+      } catch (error) {
+        if (streamTimeout) {
+          clearTimeout(streamTimeout);
+        }
+        reject(error);
+      }
+    });
+
+    // Wait for stream processing to complete, with a fallback
+    let result: string;
+    try {
+      result = await streamPromise;
+    } catch (streamError) {
+      console.error('Stream processing error:', streamError);
+      
+      // Check if we have partial content to return
+      if (fullText.length > 0) {
+        console.log('Returning partial content due to stream error');
+        result = fullText.trim();
+      } else {
+        throw streamError;
       }
     }
-
-    const result = fullText.trim();
 
     // Log a preview of the result
     if (result) {
@@ -456,6 +511,12 @@ When working with documents:
     );
   } catch (error) {
     console.error('Error getting assistant response:', error);
+    
+    // Return a more specific error message that's also parseable by the UI
+    if (error instanceof Error && (error.message.includes('timeout') || error.message.includes('timed out'))) {
+      return `Summary:\nThe response timed out. The document may be too large or complex for processing.\n\nKey Points:\n- Please try again with a smaller document\n- You can also try breaking up the document into smaller parts`;
+    }
+    
     return `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
   }
 }

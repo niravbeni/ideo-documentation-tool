@@ -84,7 +84,13 @@ export async function POST(request: Request) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
+          let lastEventTime = Date.now();
+          const STREAM_TIMEOUT = 90000; // 90 seconds
+
           for await (const event of response) {
+            // Update last event time
+            lastEventTime = Date.now();
+            
             // Log important events for debugging
             if (event.type.includes('file_search')) {
               console.log('File search event:', event.type);
@@ -96,6 +102,19 @@ export async function POST(request: Request) {
               data: event,
             });
             controller.enqueue(`data: ${data}\n\n`);
+            
+            // Periodically check for timeout
+            if (Date.now() - lastEventTime > STREAM_TIMEOUT) {
+              console.error('Stream timed out - no events received for 90 seconds');
+              const timeoutError = {
+                event: 'response.error',
+                data: { message: 'Stream timeout - no events received for 90 seconds' }
+              };
+              controller.enqueue(`data: ${JSON.stringify(timeoutError)}\n\n`);
+              controller.enqueue(`data: [DONE]\n\n`);
+              controller.close();
+              return;
+            }
           }
 
           // End of stream
@@ -103,6 +122,23 @@ export async function POST(request: Request) {
           controller.close();
         } catch (error) {
           console.error('Error in streaming loop:', error);
+          
+          // Send error to client
+          try {
+            const errorEvent = {
+              event: 'response.error',
+              data: { 
+                message: error instanceof Error ? error.message : 'Unknown error in streaming response',
+                isTimeout: error instanceof Error && 
+                  (error.message.includes('timeout') || error.message.includes('timed out'))
+              }
+            };
+            controller.enqueue(`data: ${JSON.stringify(errorEvent)}\n\n`);
+            controller.enqueue(`data: [DONE]\n\n`);
+          } catch (e) {
+            console.error('Error sending error event to client:', e);
+          }
+          
           controller.error(error);
         }
       },
