@@ -330,8 +330,8 @@ export const processMessages = async () => {
  */
 export async function getAssistantResponse(
   content: string,
-  vectorStoreId?: string,
-  systemPrompt: string = 'You are a document analysis expert. Extract structured information from the files in the vector store as instructed.'
+  systemPrompt: string,
+  vectorStoreId?: string
 ): Promise<string> {
   try {
     if (!vectorStoreId) {
@@ -341,25 +341,12 @@ export async function getAssistantResponse(
 
     console.log(`Getting assistant response with vector store ID: ${vectorStoreId}`);
 
-    // Add instructions for handling large documents
-    const enhancedPrompt = `${systemPrompt}
-
-When working with documents:
-1. Search thoroughly for SPECIFIC EXAMPLES, DIRECT QUOTES, and UNIQUE LANGUAGE
-2. Look in multiple sections of the document, not just summaries
-3. Use direct quotes when describing processes, methodologies, and outcomes
-4. Extract exact phrasing and terminology rather than paraphrasing
-5. Prioritize sections that contain detailed information about methods, results and client feedback
-6. FOCUS ON THE DESIGN/WORK SECTION - This should be the most detailed with specific methodologies
-7. For the Challenge section, focus on the core issues rather than listing all challenges
-8. Balance the content across sections - don't make any one section overwhelm the others`;
-
     // Setup request data
     const requestData = {
       messages: [
         {
           role: 'system',
-          content: enhancedPrompt,
+          content: systemPrompt,
         },
         {
           role: 'user',

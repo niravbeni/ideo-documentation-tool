@@ -1,6 +1,7 @@
 import { openai } from '@/lib/openai';
 import { NextResponse } from 'next/server';
 import { OPENAI_CONFIG } from '@/lib/constants';
+import { sleep } from '@/lib/utils';
 
 interface Tool {
   type: string;
@@ -9,6 +10,11 @@ interface Tool {
     description: string;
     parameters: any;
   };
+}
+
+interface FileStatus {
+  id: string;
+  status: string;
 }
 
 export async function POST(request: Request) {
@@ -20,21 +26,48 @@ export async function POST(request: Request) {
     if (vectorStoreId) {
       console.log(`Using vector store ID: ${vectorStoreId}`);
 
-      // Verify the vector store exists
+      // Verify the vector store exists and wait for files to be processed
       try {
         const vectorStore = await openai.vectorStores.retrieve(vectorStoreId);
         console.log(`Vector store verified: ${vectorStore.id} (${vectorStore.name || 'unnamed'})`);
 
-        // List files in the vector store to ensure we have content
-        const filesResponse = await openai.vectorStores.files.list(vectorStoreId);
-        const files = filesResponse.data;
-        console.log(`Vector store contains ${files.length} files`);
+        // List files and wait for processing
+        let files: FileStatus[] = [];
+        let retryCount = 0;
+        const MAX_RETRIES = 6; // Maximum 30 seconds of waiting (5s * 6)
+        
+        while (retryCount < MAX_RETRIES) {
+          const filesResponse = await openai.vectorStores.files.list(vectorStoreId);
+          files = filesResponse.data;
+          
+          // Check if any files are still processing
+          const processingFiles = files.filter(file => file.status === 'in_progress');
+          
+          if (processingFiles.length > 0) {
+            console.log(`Waiting for ${processingFiles.length} files to finish processing...`);
+            retryCount++;
+            if (retryCount < MAX_RETRIES) {
+              await sleep(5000); // Wait 5 seconds before checking again
+              continue;
+            }
+          }
+          
+          break; // Exit loop if no files are processing or we've hit max retries
+        }
 
+        console.log(`Vector store contains ${files.length} files`);
+        
         // Log file information for debugging
         if (files.length > 0) {
           files.forEach((file) => {
             console.log(`File in store: ${file.id}, Status: ${file.status}`);
           });
+          
+          // If files are still processing after max retries, warn but continue
+          const stillProcessing = files.filter(file => file.status === 'in_progress');
+          if (stillProcessing.length > 0) {
+            console.warn(`Proceeding with ${stillProcessing.length} files still processing after ${MAX_RETRIES} retries`);
+          }
         } else {
           console.warn('Vector store has no files. File search will not work.');
         }
@@ -85,7 +118,7 @@ export async function POST(request: Request) {
       async start(controller) {
         try {
           let lastEventTime = Date.now();
-          const STREAM_TIMEOUT = 90000; // 90 seconds
+          const STREAM_TIMEOUT = OPENAI_CONFIG.TIMEOUT_MS; // Use the same timeout as the API
 
           for await (const event of response) {
             // Update last event time
@@ -105,10 +138,13 @@ export async function POST(request: Request) {
             
             // Periodically check for timeout
             if (Date.now() - lastEventTime > STREAM_TIMEOUT) {
-              console.error('Stream timed out - no events received for 90 seconds');
+              console.error(`Stream timed out - no events received for ${STREAM_TIMEOUT/1000} seconds`);
               const timeoutError = {
                 event: 'response.error',
-                data: { message: 'Stream timeout - no events received for 90 seconds' }
+                data: { 
+                  message: `Stream timeout - no events received for ${STREAM_TIMEOUT/1000} seconds`,
+                  isTimeout: true
+                }
               };
               controller.enqueue(`data: ${JSON.stringify(timeoutError)}\n\n`);
               controller.enqueue(`data: [DONE]\n\n`);

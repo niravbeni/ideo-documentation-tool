@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { CaseStudyOutput } from '@/components/CaseStudyOutput';
 import { getAssistantResponse } from '@/lib/assistant';
 import { IdeoLoader } from 'ideo-loader';
+import { BASE_SYSTEM_PROMPT, DOCUMENT_HANDLING_INSTRUCTIONS, SUMMARY_PROMPT, INSIDE_IDEO_PROMPT } from '@/lib/prompts';
 
 export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -390,108 +391,21 @@ export default function Home() {
 
       setProcessingStatus('Processing PDFs...');
 
-      // Define unified system prompt
-      const systemPrompt = `You are a document analysis expert specializing in extracting structured information from IDEO client projects.
-Your task is to extract and format information exactly as requested, following these guidelines:
-- Extract only factual information from the provided content - do not invent or assume details
-- Use DIRECT QUOTES and EXACT PHRASING from the original document whenever possible
-- Copy specific technical terms, methodologies, and unique language from the original text
-- Prioritize specific examples over general descriptions
-- Include actual metrics, statistics, and quantitative data mentioned in the document
-- Capture the authentic voice and tone of the original document
-- Format responses exactly as specified in the prompt
-- DO NOT use ANY markdown formatting (no **, #, -, *, etc.) in your response
-- When extracting examples, include the most unique and detailed ones from the document
-- Start each section directly with the content (no markdown headers or formatting)
-- When searching the document, look for sections about methods, processes, outcomes, and client feedback`;
-
-      // Define content prompts
-      const summaryPrompt = `Extract key information for a project overview with the following structure:
-
-Summary: A concise summary of the client project (1-2 paragraphs maximum).
-
-Key Points: 
-1. First key point as a single sentence about a key deliverable.
-2. Second key point as a single sentence about a key deliverable.
-3. Third key point as a single sentence about a key deliverable.
-4. Fourth key point as a single sentence about a key deliverable.
-5. Fifth key point as a single sentence about a key deliverable.
-
-Insights: 
-1. First insight as a single sentence about a project insight or design decision.
-2. Second insight as a single sentence about a project insight or design decision.
-3. Third insight as a single sentence about a project insight or design decision.
-4. Fourth insight as a single sentence about a project insight or design decision.
-5. Fifth insight as a single sentence about a project insight or design decision.
-
-Format the Key Points and Insights exactly as numbered lists as shown above. Each point must be a single complete sentence. Do not use any markdown formatting in your response.`;
-
-      const insideIDEOPrompt = `Extract detailed case study information with the following structure, using the EXACT language, terminology, and phrasing from the original document:
-
-Client:
-One line identifying the client organization name. Keep it brief.
-
-Title:
-A short, compelling title that encapsulates the main focus (one line).
-
-Tagline:
-A brief phrase that captures the essence of the project (one line).
-
-Challenge:
-Provide a detailed description (3-5 paragraphs) of the business context, primary issues faced, market conditions, user needs, and the specific challenge. Include what was at stake for the client and why this challenge was significant.
-
-IMPORTANT FOR CHALLENGE SECTION:
-- Use DIRECT QUOTES from the document when describing the problem but keep them brief
-- Include just 1-2 SPECIFIC EXAMPLES of challenges mentioned in the document
-- Focus more on the business context and key issues rather than listing all challenges
-- Maintain the original tone and terminology used in the document
-- If present in the document, frame part of the challenge as a "How might we" question
-- Include important numbers, statistics, or metrics mentioned about the challenge
-
-Design/Work:
-Explain thoroughly (3-5 paragraphs) the specific approaches, methods, and strategies used. 
-
-IMPORTANT FOR DESIGN/WORK SECTION:
-- This section needs the MOST DETAIL and SPECIFICITY
-- Use DIRECT QUOTES from the document when describing processes and approaches
-- Mention ALL specific methodologies, frameworks, or tools that were used BY NAME
-- Include 3-4 CONCRETE EXAMPLES of activities that were conducted
-- Detail the exact research methods used with specifics (e.g., "17 interviews with healthcare providers")
-- Describe specific design interventions with their actual names from the document
-- Include details about team composition, timeline, and process if mentioned
-- Focus on unique aspects of the design approach that made this project special
-- Maintain the original technical terminology used in the document
-
-Impact/Outcome:
-Detail comprehensively (3-5 paragraphs) the concrete results and measurable outcomes.
-
-IMPORTANT FOR IMPACT/OUTCOME SECTION:
-- Use DIRECT QUOTES from the document when describing results
-- Include ALL specific metrics, percentages, or quantitative results mentioned
-- Detail 2-3 SPECIFIC EXAMPLES of how the solution helped the client
-- Include actual feedback or testimonials from clients/users if present
-- Describe how the solution addressed the original challenge using SPECIFIC DETAILS
-- Maintain the original language and voice from the document
-
-For all sections, use the EXACT phrases, unique terminology, and specific language from the document rather than generalizing. Copy the actual words used in the original text whenever possible.
-
-Do not use any markdown formatting (no ##, **, etc.) in your response. Start each section directly with the section name followed by a colon.`;
-
-      // Get content with null check for vectorStore
-      console.log('Getting content with vector store ID:', vectorStoreId);
+      // Combine system prompt with document handling instructions
+      const enhancedSystemPrompt = `${BASE_SYSTEM_PROMPT}\n\n${DOCUMENT_HANDLING_INSTRUCTIONS}`;
 
       // Process Project Overview template
       setProcessingStatus('Generating Project Overview...');
-      const summaryText = await getAssistantResponse(summaryPrompt, vectorStoreId, systemPrompt);
+      const summaryText = await getAssistantResponse(SUMMARY_PROMPT, enhancedSystemPrompt, vectorStoreId);
       setProcessingStatus('Project Overview template complete');
       await new Promise((resolve) => setTimeout(resolve, 1000)); // Show completion message briefly
 
       // Process Inside IDEO template
       setProcessingStatus('Generating Inside IDEO template...');
       const insideIDEOText = await getAssistantResponse(
-        insideIDEOPrompt,
-        vectorStoreId,
-        systemPrompt
+        INSIDE_IDEO_PROMPT,
+        enhancedSystemPrompt,
+        vectorStoreId
       );
       setProcessingStatus('Inside IDEO template complete');
       await new Promise((resolve) => setTimeout(resolve, 1000)); // Show completion message briefly
