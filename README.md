@@ -2,6 +2,12 @@
 
 A powerful Next.js application designed to streamline the process of extracting and formatting content from PDF documents into structured IDEO case study templates. This tool leverages OpenAI's GPT models and vector store technology to intelligently process and organize document content.
 
+## Overview
+
+The IDEO Documentation Tool processes PDF documents and extracts relevant information to generate structured case studies in two formats:
+1. **Project Overview** - A concise summary with key points and insights
+2. **Inside IDEO Template** - A comprehensive case study with client details, challenge, design work, and impact sections
+
 ## Features
 
 ### PDF Processing
@@ -9,6 +15,7 @@ A powerful Next.js application designed to streamline the process of extracting 
 - Automatic content extraction using OpenAI's GPT models
 - Vector store integration for efficient document search and retrieval
 - Real-time processing status updates
+- Memory optimization for handling large files
 
 ### Content Extraction
 - Intelligent extraction of key project information:
@@ -29,33 +36,29 @@ A powerful Next.js application designed to streamline the process of extracting 
 
 ### User Interface
 - Modern, responsive design
-- Drag-and-drop file upload
+- Drag-and-drop file upload via react-dropzone
 - Real-time content editing capabilities
 - Copy-to-clipboard functionality
-- Progress indicators and status updates
+- Progress indicators and status updates with custom IDEO loader
 - Error handling and user feedback
 
-## Technical Architecture
+## Technical Stack
 
 ### Frontend
-- Built with Next.js 14 and React 18
-- Styled using Tailwind CSS
-- State management with Zustand
-- Custom UI components built with Radix UI primitives
+- **Framework**: Next.js 15
+- **UI Library**: React 18
+- **Styling**: Tailwind CSS with animation plugins
+- **State Management**: Zustand for global state
+- **UI Components**: 
+  - Custom components built with Radix UI primitives
+  - Lucide React for icons
+  - Recharts for data visualization (if applicable)
 
 ### Backend (API Routes)
-- Vector store management for document processing
-- OpenAI integration for content extraction
-- PDF processing and file management
-- Error handling and retry logic
-
-### Key Technologies
-- Next.js for full-stack development
-- OpenAI API for content processing
-- Vector store for document search
-- TypeScript for type safety
-- Tailwind CSS for styling
-- Zustand for state management
+- **Vector Store**: Integration for document processing
+- **OpenAI Integration**: GPT models for content extraction
+- **PDF Processing**: pdf-lib for PDF manipulation
+- **Error Handling**: Comprehensive error management with retry logic
 
 ## Setup and Installation
 
@@ -67,32 +70,32 @@ A powerful Next.js application designed to streamline the process of extracting 
 ### Installation Steps
 
 1. Clone the repository:
-\`\`\`bash
+```bash
 git clone https://github.com/[your-username]/ideo-documentation-tool.git
 cd ideo-documentation-tool
-\`\`\`
+```
 
 2. Install dependencies:
-\`\`\`bash
+```bash
 npm install
 # or
 yarn install
-\`\`\`
+```
 
 3. Create environment files:
 
-Create a \`.env.local\` file in the root directory with the following variables:
-\`\`\`env
+Create a `.env.local` file in the root directory with the following variables:
+```env
 OPENAI_API_KEY=your_api_key_here
 OPENAI_MODEL=gpt-4o-mini  # or your preferred model
-\`\`\`
+```
 
 4. Start the development server:
-\`\`\`bash
+```bash
 npm run dev
 # or
 yarn dev
-\`\`\`
+```
 
 5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
@@ -123,8 +126,9 @@ The application exposes several API endpoints:
 - `/api/vector_stores/upload_file`: Handles file uploads
 - `/api/vector_stores/add_file`: Adds files to the vector store
 - `/api/vector_stores/query`: Queries the vector store for content
+- `/api/vector_stores/proxy_upload`: Optimized upload path for large files
 - `/api/turn_response`: Processes GPT responses
-- `/api/pdf/pages`: Handles PDF page extraction
+- `/api/assistant`: Handles assistant interactions
 
 ## Error Handling
 
@@ -135,66 +139,78 @@ The application includes comprehensive error handling for:
 - Network connectivity problems
 - Invalid file types
 - File size limitations
+- Memory optimization for large files
 
-## Development
+## Project Structure
 
-### Project Structure
-\`\`\`
+```
 ├── app/                  # Next.js app directory
-│   ├── api/             # API routes
-│   ├── components/      # React components
-│   └── page.tsx         # Main application page
-├── lib/                 # Utility functions and configurations
-├── stores/              # Zustand state management
-├── components/          # Shared UI components
-└── public/             # Static assets
-\`\`\`
-
-### Key Files
-- `app/page.tsx`: Main application logic and UI
-- `lib/assistant.ts`: OpenAI integration and processing
-- `lib/constants.ts`: Configuration constants
-- `stores/useToolsStore.ts`: Global state management
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
-
-## License
-
-MIT License - see LICENSE file for details
+│   ├── api/              # API routes
+│   ├── page.tsx          # Main application page
+│   └── layout.tsx        # Application layout
+├── lib/                  # Utility functions and configurations
+│   ├── assistant.ts      # OpenAI integration and processing
+│   ├── constants.ts      # Configuration constants
+│   └── prompts.ts        # System prompts for AI processing
+├── stores/               # Zustand state management
+│   └── useToolsStore.ts  # Global state for tools
+├── components/           # Shared UI components
+│   ├── CaseStudyOutput.tsx  # Output display component
+│   ├── FileUpload.tsx    # File upload component
+│   └── ui/               # UI component library
+└── public/               # Static assets
+```
 
 ## Environment Variables
 
 - `OPENAI_API_KEY`: Your OpenAI API key (required)
 - `OPENAI_MODEL`: The OpenAI model to use (optional, defaults to 'gpt-4o-mini')
-  - Must be set before starting the application
-  - Changes require server restart
-  - Common values: 'gpt-4', 'gpt-3.5-turbo', 'gpt-4-turbo-preview'
 
 Note: Environment variables are read at build/startup time. Any changes to these variables require restarting the development server or rebuilding the application.
 
-## Deployment on Render
+## Deployment
 
-This application is configured for deployment on Render. Follow these steps to deploy:
+This application can be deployed on various hosting platforms:
+
+### Deployment on Render
 
 1. Fork or clone this repository to your GitHub account
 2. Create a new Web Service on Render
 3. Connect your GitHub repository
-4. Render will automatically detect the configuration from `render.yaml`
-5. Set up the following environment variables in Render:
+4. Set up the following environment variables in Render:
    - `OPENAI_API_KEY`: Your OpenAI API key
-   - `OPENAI_MODEL`: Set to `gpt-4-turbo-preview` (or your preferred model)
+   - `OPENAI_MODEL`: Set to `gpt-4o-mini` (or your preferred model)
    - `NODE_ENV`: Set to `production`
 
 The application will automatically deploy when you push changes to the main branch.
 
-### Important Notes
-- Ensure your OpenAI API key has sufficient credits
-- The free tier of Render may have some limitations
-- Initial build might take a few minutes
-- The application requires Node.js 18.x or higher 
+## Scripts
+
+- `npm run dev`: Start the development server
+- `npm run build`: Build the application for production
+- `npm run start`: Start the production server
+- `npm run lint`: Run ESLint to check code quality
+- `npm run format`: Run Prettier to format code
+
+## Dependencies
+
+### Main Dependencies
+- Next.js and React for the application framework
+- OpenAI for AI-powered document processing
+- Zustand for state management
+- Radix UI for accessible UI components
+- Tailwind CSS for styling
+- pdf-lib for PDF manipulation
+- react-dropzone for file uploads
+- uuid for generating unique identifiers
+
+### Development Dependencies
+- TypeScript for type safety
+- ESLint for code quality
+- Prettier for code formatting
+- Tailwind CSS plugins for enhanced styling
+- Various TypeScript type definitions
+
+## License
+
+MIT License - see LICENSE file for details 
